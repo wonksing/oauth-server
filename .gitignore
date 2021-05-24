@@ -25,3 +25,6 @@ logs/
 
 # debug files
 debug
+
+# project specific
+token_store
