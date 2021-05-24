@@ -1,4 +1,4 @@
-package commons
+package mjwt
 
 import (
 	"errors"
@@ -14,7 +14,13 @@ type TokenClaim struct {
 	Exp   float64 `json:"exp"`
 }
 
-func GenAccessTokenJWT(tokenSecret string, usrID string) (string, error) {
+func NewTokenClaim(usrID string, exp float64) *TokenClaim {
+	return &TokenClaim{
+		UsrID: usrID,
+		Exp:   exp,
+	}
+}
+func GenerateAccessToken(tokenSecret string, usrID string) (string, error) {
 
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := token.Claims.(jwt.MapClaims)
@@ -49,10 +55,7 @@ func ValidateAccessToken(accessToken string, tokenSecret string) (*TokenClaim, b
 	var claim *TokenClaim
 	if token != nil && token.Claims.Valid() != nil {
 		c := token.Claims.(jwt.MapClaims)
-		claim = &TokenClaim{
-			UsrID: c["usr_id"].(string),
-			Exp:   c["exp"].(float64),
-		}
+		claim = NewTokenClaim(c["usr_id"].(string), c["exp"].(float64))
 	}
 	if err != nil {
 		v, _ := err.(*jwt.ValidationError)
@@ -64,10 +67,7 @@ func ValidateAccessToken(accessToken string, tokenSecret string) (*TokenClaim, b
 
 	if token.Valid {
 		c := token.Claims.(jwt.MapClaims)
-		claim = &TokenClaim{
-			UsrID: c["usr_id"].(string),
-			Exp:   c["exp"].(float64),
-		}
+		claim = NewTokenClaim(c["usr_id"].(string), c["exp"].(float64))
 		return claim, false, nil
 	}
 

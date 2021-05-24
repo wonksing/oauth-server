@@ -12,6 +12,7 @@ import (
 	"github.com/go-oauth2/oauth2/v4/server"
 	"github.com/go-oauth2/oauth2/v4/store"
 	"github.com/wonksing/oauth-server/pkg/commons"
+	"github.com/wonksing/oauth-server/pkg/models/mjwt"
 	"github.com/wonksing/oauth-server/pkg/utils"
 )
 
@@ -70,7 +71,7 @@ func (h *ServerHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, err := commons.GenAccessTokenJWT(h.JwtSecret, userID)
+	accessToken, err := mjwt.GenerateAccessToken(h.JwtSecret, userID)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -90,8 +91,8 @@ func UserAuthorizeHandler(w http.ResponseWriter, r *http.Request) (userID string
 	utils.DumpRequest(os.Stdout, "UserAuthorizeHandler", r) // Ignore the error
 
 	ctx := r.Context()
-	claim := ctx.Value(commons.TokenClaim{})
-	tc := claim.(*commons.TokenClaim)
+	claim := ctx.Value(mjwt.TokenClaim{})
+	tc := claim.(*mjwt.TokenClaim)
 	userID = tc.UsrID
 
 	return
@@ -145,7 +146,7 @@ func (h *ServerHandler) OAuthLoginHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	accessToken, err := commons.GenAccessTokenJWT(h.JwtSecret, userID)
+	accessToken, err := mjwt.GenerateAccessToken(h.JwtSecret, userID)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return

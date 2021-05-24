@@ -7,9 +7,10 @@ import (
 	"time"
 
 	"github.com/wonksing/oauth-server/pkg/commons"
+	"github.com/wonksing/oauth-server/pkg/models/mjwt"
 )
 
-func handleJWTAuth(w http.ResponseWriter, r *http.Request, secretKey string) (*commons.TokenClaim, error) {
+func handleJWTAuth(w http.ResponseWriter, r *http.Request, secretKey string) (*mjwt.TokenClaim, error) {
 
 	ck, err := r.Cookie("access_token")
 	if err != nil || ck.Value == "" {
@@ -17,7 +18,7 @@ func handleJWTAuth(w http.ResponseWriter, r *http.Request, secretKey string) (*c
 	}
 
 	token := ck.Value
-	claim, _, err := commons.ValidateAccessToken(token, secretKey)
+	claim, _, err := mjwt.ValidateAccessToken(token, secretKey)
 
 	if err != nil || claim == nil {
 		return nil, errors.New(http.StatusText(http.StatusUnauthorized))
@@ -49,7 +50,7 @@ func AuthJWTHandler(next http.HandlerFunc, secret, redirectUriOnFail string) htt
 			w.WriteHeader(http.StatusFound)
 			return
 		}
-		ctx := context.WithValue(r.Context(), commons.TokenClaim{}, claim)
+		ctx := context.WithValue(r.Context(), mjwt.TokenClaim{}, claim)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
