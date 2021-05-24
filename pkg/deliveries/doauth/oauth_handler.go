@@ -1,4 +1,4 @@
-package deliveries
+package doauth
 
 import (
 	"encoding/json"

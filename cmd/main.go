@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/viper"
 	"github.com/wonksing/oauth-server/pkg/commons"
-	"github.com/wonksing/oauth-server/pkg/deliveries"
 	"github.com/wonksing/oauth-server/pkg/deliveries/dcommon"
+	"github.com/wonksing/oauth-server/pkg/deliveries/doauth"
 
 	"github.com/go-oauth2/oauth2/v4/models"
 )
@@ -81,37 +81,37 @@ func main() {
 	})
 
 	// Authorization Code Grant
-	oauthServer.Srv.SetUserAuthorizationHandler(deliveries.UserAuthorizeHandler)
+	oauthServer.Srv.SetUserAuthorizationHandler(doauth.UserAuthorizeHandler)
 
-	h := deliveries.ServerHandler{
+	h := doauth.ServerHandler{
 		Srv:         oauthServer.Srv,
 		JwtSecret:   jwtSecret,
 		ClientStore: oauthServer.ClientStore,
 	}
 
 	// 테스트용 API
-	http.HandleFunc(deliveries.API_INDEX, dcommon.AuthJWTHandler(h.HelloHandler, jwtSecret, deliveries.API_LOGIN))
-	http.HandleFunc(deliveries.API_HELLO, dcommon.AuthJWTHandler(h.HelloHandler, jwtSecret, deliveries.API_LOGIN))
-	http.HandleFunc(deliveries.API_LOGIN, h.LoginHandler)
+	http.HandleFunc(doauth.API_INDEX, dcommon.AuthJWTHandler(h.HelloHandler, jwtSecret, doauth.API_LOGIN))
+	http.HandleFunc(doauth.API_HELLO, dcommon.AuthJWTHandler(h.HelloHandler, jwtSecret, doauth.API_LOGIN))
+	http.HandleFunc(doauth.API_LOGIN, h.LoginHandler)
 
 	// OAuth2 API
 	// 리소스 서버에 인증
-	http.HandleFunc(deliveries.API_OAUTH_LOGIN, h.OAuthLoginHandler)
+	http.HandleFunc(doauth.API_OAUTH_LOGIN, h.OAuthLoginHandler)
 	// 리소스 서버의 정보 인가
-	http.HandleFunc(deliveries.API_OAUTH_ALLOW, dcommon.AuthJWTHandler(h.OAuthAllowAuthorizationHandler, jwtSecret, deliveries.API_OAUTH_LOGIN))
+	http.HandleFunc(doauth.API_OAUTH_ALLOW, dcommon.AuthJWTHandler(h.OAuthAllowAuthorizationHandler, jwtSecret, doauth.API_OAUTH_LOGIN))
 	// Authorization Code Grant Type
-	http.HandleFunc(deliveries.API_OAUTH_AUTHORIZE, dcommon.AuthJWTHandler(h.OAuthAuthorizeHandler, jwtSecret, deliveries.API_OAUTH_LOGIN))
+	http.HandleFunc(doauth.API_OAUTH_AUTHORIZE, dcommon.AuthJWTHandler(h.OAuthAuthorizeHandler, jwtSecret, doauth.API_OAUTH_LOGIN))
 
 	// token request for all types of grant
 	// Client Credentials Grant comes here directly
 	// Client Server용 API
-	http.HandleFunc(deliveries.API_OAUTH_TOKEN, h.OAuthTokenHandler)
+	http.HandleFunc(doauth.API_OAUTH_TOKEN, h.OAuthTokenHandler)
 
 	// validate access token
-	http.HandleFunc(deliveries.API_OAUTH_TOKEN_VALIDATE, h.OAuthValidateTokenHandler)
+	http.HandleFunc(doauth.API_OAUTH_TOKEN_VALIDATE, h.OAuthValidateTokenHandler)
 
 	// client credential 저장
-	http.HandleFunc(deliveries.API_OAUTH_CREDENTIALS, h.CredentialHandler)
+	http.HandleFunc(doauth.API_OAUTH_CREDENTIALS, h.CredentialHandler)
 
 	log.Printf("Server is running at %v.\n", addr)
 	log.Printf("Point your OAuth client Auth endpoint to %s%s", "http://"+addr, "/oauth/authorize")
