@@ -1,4 +1,4 @@
-package dcommon
+package dmiddleware
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/wonksing/oauth-server/pkg/models/mjwt"
 )
 
-func handleJWTAuth(w http.ResponseWriter, r *http.Request, secretKey string) (*mjwt.TokenClaim, error) {
+func authJWT(w http.ResponseWriter, r *http.Request, secretKey string) (*mjwt.TokenClaim, error) {
 
 	ck, err := r.Cookie("access_token")
 	if err != nil || ck.Value == "" {
@@ -37,7 +37,7 @@ func handleJWTAuth(w http.ResponseWriter, r *http.Request, secretKey string) (*m
 func AuthJWTHandler(next http.HandlerFunc, secret, redirectUriOnFail string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		claim, err := handleJWTAuth(w, r, secret)
+		claim, err := authJWT(w, r, secret)
 		if err != nil {
 			if redirectUriOnFail == "/oauth/login" {
 				if r.Form == nil {

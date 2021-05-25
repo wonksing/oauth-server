@@ -1,9 +1,7 @@
 package mjwt
 
 import (
-	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -20,12 +18,30 @@ func NewTokenClaim(usrID string, exp float64) *TokenClaim {
 		Exp:   exp,
 	}
 }
-func GenerateAccessToken(tokenSecret string, usrID string) (string, error) {
 
+func mapClaim(usrID string) *jwt.Token {
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := token.Claims.(jwt.MapClaims)
 	claims["usr_id"] = usrID
 	claims["exp"] = time.Now().Add(1 * time.Minute).Unix()
+	return token
+}
+
+func getTokenClaim(token *jwt.Token) *TokenClaim {
+	if token == nil {
+		return nil
+	}
+	if token.Claims.Valid() != nil {
+		return nil
+	}
+
+	c := token.Claims.(jwt.MapClaims)
+	claim := NewTokenClaim(c["usr_id"].(string), c["exp"].(float64))
+	return claim
+}
+
+func GenerateAccessToken(tokenSecret string, usrID string) (string, error) {
+	token := mapClaim(usrID)
 
 	tokenString, err := token.SignedString([]byte(tokenSecret))
 	if err != nil {
@@ -52,24 +68,15 @@ func ValidateAccessToken(accessToken string, tokenSecret string) (*TokenClaim, b
 		return []byte(tokenSecret), nil
 	})
 
-	var claim *TokenClaim
-	if token != nil && token.Claims.Valid() != nil {
-		c := token.Claims.(jwt.MapClaims)
-		claim = NewTokenClaim(c["usr_id"].(string), c["exp"].(float64))
-	}
 	if err != nil {
 		v, _ := err.(*jwt.ValidationError)
-		if v.Errors == jwt.ValidationErrorExpired {
+		if v.Errors == jwt.ValidationErrorExpired && token.Valid {
+			claim := getTokenClaim(token)
 			return claim, true, err
 		}
 		return nil, false, err
 	}
 
-	if token.Valid {
-		c := token.Claims.(jwt.MapClaims)
-		claim = NewTokenClaim(c["usr_id"].(string), c["exp"].(float64))
-		return claim, false, nil
-	}
-
-	return nil, false, errors.New(http.StatusText(http.StatusUnauthorized))
+	claim := getTokenClaim(token)
+	return claim, false, nil
 }

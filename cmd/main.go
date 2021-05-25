@@ -5,11 +5,17 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/spf13/viper"
+	"github.com/wonksing/oauth-server/pkg/adaptors/cookies"
+	"github.com/wonksing/oauth-server/pkg/adaptors/filerepo"
 	"github.com/wonksing/oauth-server/pkg/commons"
-	"github.com/wonksing/oauth-server/pkg/deliveries/dcommon"
+	"github.com/wonksing/oauth-server/pkg/deliveries/dmiddleware"
 	"github.com/wonksing/oauth-server/pkg/deliveries/doauth"
+	"github.com/wonksing/oauth-server/pkg/deliveries/duser"
+	"github.com/wonksing/oauth-server/pkg/models/moauth"
+	"github.com/wonksing/oauth-server/pkg/usecases/uoauth"
 
 	"github.com/go-oauth2/oauth2/v4/models"
 )
@@ -73,45 +79,45 @@ func main() {
 	}
 
 	// Password credentials
-	oauthServer.Srv.SetPasswordAuthorizationHandler(func(username, password string) (userID string, err error) {
-		if username == "test" && password == "test" {
-			userID = "test"
-		}
-		return
-	})
+	oauthServer.Srv.SetPasswordAuthorizationHandler(moauth.PasswordAuthorizeHandler)
 
 	// Authorization Code Grant
-	oauthServer.Srv.SetUserAuthorizationHandler(doauth.UserAuthorizeHandler)
+	oauthServer.Srv.SetUserAuthorizationHandler(moauth.UserAuthorizeHandler)
 
-	h := doauth.ServerHandler{
-		Srv:         oauthServer.Srv,
-		JwtSecret:   jwtSecret,
-		ClientStore: oauthServer.ClientStore,
-	}
+	oauthCookie := cookies.NewOAuthCookie("oauth_return_uri", time.Duration(24*365), "access_token", time.Duration(24*365))
+	authRepo := filerepo.NewAuthFileRepo()
+
+	oauthUsc := uoauth.NewOAuthUsecase(jwtSecret, oauthCookie, authRepo)
+
+	oauthHandler := doauth.NewOAuthHandler(oauthUsc, oauthServer.Srv, jwtSecret, oauthServer.ClientStore)
+
+	userHandler := duser.NewHttpUserHandler(jwtSecret)
 
 	// 테스트용 API
-	http.HandleFunc(doauth.API_INDEX, dcommon.AuthJWTHandler(h.HelloHandler, jwtSecret, doauth.API_LOGIN))
-	http.HandleFunc(doauth.API_HELLO, dcommon.AuthJWTHandler(h.HelloHandler, jwtSecret, doauth.API_LOGIN))
-	http.HandleFunc(doauth.API_LOGIN, h.LoginHandler)
+	http.HandleFunc(duser.API_INDEX, userHandler.IndexHandler)
+	http.HandleFunc(duser.API_LOGIN, userHandler.LoginHandler)
+	http.HandleFunc(duser.API_AUTHENTICATE, userHandler.AuthenticateHandler)
+	http.HandleFunc(duser.API_HELLO, dmiddleware.AuthJWTHandler(userHandler.HelloHandler, jwtSecret, duser.API_LOGIN))
 
 	// OAuth2 API
 	// 리소스 서버에 인증
-	http.HandleFunc(doauth.API_OAUTH_LOGIN, h.OAuthLoginHandler)
+	http.HandleFunc(doauth.API_OAUTH_LOGIN, oauthHandler.OAuthLoginHandler)
+	http.HandleFunc(doauth.API_OAUTH_AUTHENTICATE, oauthHandler.OAuthAuthenticateHandler)
 	// 리소스 서버의 정보 인가
-	http.HandleFunc(doauth.API_OAUTH_ALLOW, dcommon.AuthJWTHandler(h.OAuthAllowAuthorizationHandler, jwtSecret, doauth.API_OAUTH_LOGIN))
+	http.HandleFunc(doauth.API_OAUTH_ALLOW, dmiddleware.AuthJWTHandler(oauthHandler.OAuthAllowHandler, jwtSecret, doauth.API_OAUTH_LOGIN))
 	// Authorization Code Grant Type
-	http.HandleFunc(doauth.API_OAUTH_AUTHORIZE, dcommon.AuthJWTHandler(h.OAuthAuthorizeHandler, jwtSecret, doauth.API_OAUTH_LOGIN))
+	http.HandleFunc(doauth.API_OAUTH_AUTHORIZE, dmiddleware.AuthJWTHandler(oauthHandler.OAuthAuthorizeHandler, jwtSecret, doauth.API_OAUTH_LOGIN))
 
 	// token request for all types of grant
 	// Client Credentials Grant comes here directly
 	// Client Server용 API
-	http.HandleFunc(doauth.API_OAUTH_TOKEN, h.OAuthTokenHandler)
+	http.HandleFunc(doauth.API_OAUTH_TOKEN, oauthHandler.OAuthTokenHandler)
 
 	// validate access token
-	http.HandleFunc(doauth.API_OAUTH_TOKEN_VALIDATE, h.OAuthValidateTokenHandler)
+	http.HandleFunc(doauth.API_OAUTH_TOKEN_VALIDATE, oauthHandler.OAuthValidateTokenHandler)
 
 	// client credential 저장
-	http.HandleFunc(doauth.API_OAUTH_CREDENTIALS, h.CredentialHandler)
+	http.HandleFunc(doauth.API_OAUTH_CREDENTIALS, oauthHandler.CredentialHandler)
 
 	log.Printf("Server is running at %v.\n", addr)
 	log.Printf("Point your OAuth client Auth endpoint to %s%s", "http://"+addr, "/oauth/authorize")
