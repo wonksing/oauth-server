@@ -11,6 +11,7 @@ import (
 	"github.com/go-oauth2/oauth2/v4/server"
 	"github.com/go-oauth2/oauth2/v4/store"
 	"github.com/wonksing/oauth-server/pkg/commons"
+	"github.com/wonksing/oauth-server/pkg/models/moauth"
 	"github.com/wonksing/oauth-server/pkg/usecases/uoauth"
 )
 
@@ -59,22 +60,11 @@ func (h *OAuthHandler) OAuthLoginHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if r.Form == nil {
-		r.ParseForm()
-	}
-
-	err := h.oauthUsc.BeforeAuthenticate(w, r)
+	err := h.oauthUsc.PreAuthenticate(w, r)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	// returnUri, err := h.oauthUsc.ReadReturnURI(r)
-	// if err != nil {
-	// 	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-	// 	return
-	// }
-	// h.oauthUsc.ClearAccessToken(w)
-	// h.oauthUsc.WriteReturnURI(w, returnUri)
 
 	commons.OutputHTML(w, r, HTML_OAUTH_LOGIN)
 	return
@@ -89,20 +79,8 @@ func (h *OAuthHandler) OAuthAuthenticateHandler(w http.ResponseWriter, r *http.R
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	if r.Form == nil {
-		r.ParseForm()
-	}
 
-	// 인증
-	userID := r.Form.Get("username")
-	userPW := r.Form.Get("password")
-	err := h.oauthUsc.Authenticate(userID, userPW)
-	if err != nil {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-
-	err = h.oauthUsc.AfterAuthenticate(w, r, userID)
+	err := h.oauthUsc.Authenticate(w, r)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -113,39 +91,32 @@ func (h *OAuthHandler) OAuthAuthenticateHandler(w http.ResponseWriter, r *http.R
 
 }
 
-// OAuthAllowHandler 사용자가 권한을 허용한다.
+// OAuthAllowHandler 허용/인가 페이지로 보내기
 func (h *OAuthHandler) OAuthAllowHandler(w http.ResponseWriter, r *http.Request) {
 	_ = commons.DumpRequest(os.Stdout, "OAuthAllowHandler", r) // Ignore the error
-	// store, err := session.Start(r.Context(), w, r)
-	// if err != nil {
-	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
-	// 	return
-	// }
-
-	// if _, ok := store.Get("LoggedInUserID"); !ok {
-	// 	w.Header().Set("Location", "/oauthlogin")
-	// 	w.WriteHeader(http.StatusFound)
-	// 	return
-	// }
 
 	commons.OutputHTML(w, r, HTML_OAUTH_ALLOW)
 }
 
-// OAuthAuthHandler 인가된 사용자인지 확인한다.
-// 로그인된 사용자라면 사용자 아이디를 반환하고, 그렇지 않으면 로그인 페이지로 유도한다.
-// GET /oauth/authorize?client_id=12345&code_challenge=Qn3Kywp0OiU4NK_AFzGPlmrcYJDJ13Abj_jdL08Ahg8%3D&code_challenge_method=S256&redirect_uri=http%3A%2F%2Flocalhost%3A9094%2Foauth2&response_type=code&scope=all&state=xyz
+// OAuthAuthHandler 인증&인가 확인 및 code 생성.
+// 로그인 후 권한 인가를 허용한 사용자인 경우 auth code를 생성하여 redirect_uri 로 보낸다.
 func (h *OAuthHandler) OAuthAuthorizeHandler(w http.ResponseWriter, r *http.Request) {
 	commons.DumpRequest(os.Stdout, "OAuthAuthorizeHandler", r)
 
-	if r.Form == nil {
-		r.ParseForm()
-	}
-
-	err := h.oauthUsc.BeforeUserAuthorize(w, r)
+	err := h.oauthUsc.UserAuthorize(w, r)
 	if err != nil {
+		if err == moauth.ErrorUserDidNotAllow {
+			h.oauthUsc.RedirectToClient(w, r)
+			return
+		} else if err == moauth.ErrorUserNeedToAllow {
+			h.oauthUsc.RedirectToAllowPage(w, r)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	h.oauthUsc.ClearOAuthCookie(w)
 
 	err = h.Srv.HandleAuthorizeRequest(w, r)
 	if err != nil {

@@ -22,12 +22,14 @@ const (
 )
 
 type HttpUserHandler struct {
-	jwtSecret string
+	jwtSecret        string
+	jwtExpiresSecond int64
 }
 
-func NewHttpUserHandler(jwtSecret string) *HttpUserHandler {
+func NewHttpUserHandler(jwtSecret string, jwtExpiresSecond int64) *HttpUserHandler {
 	return &HttpUserHandler{
-		jwtSecret: jwtSecret,
+		jwtSecret:        jwtSecret,
+		jwtExpiresSecond: jwtExpiresSecond,
 	}
 }
 
@@ -79,7 +81,7 @@ func (h *HttpUserHandler) AuthenticateHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	accessToken, err := mjwt.GenerateAccessToken(h.jwtSecret, userID)
+	accessToken, err := mjwt.GenerateAccessToken(h.jwtSecret, userID, h.jwtExpiresSecond)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return

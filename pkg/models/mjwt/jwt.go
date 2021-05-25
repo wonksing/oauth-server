@@ -1,6 +1,7 @@
 package mjwt
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -19,11 +20,11 @@ func NewTokenClaim(usrID string, exp float64) *TokenClaim {
 	}
 }
 
-func mapClaim(usrID string) *jwt.Token {
+func mapClaim(usrID string, expSecond int64) *jwt.Token {
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := token.Claims.(jwt.MapClaims)
 	claims["usr_id"] = usrID
-	claims["exp"] = time.Now().Add(1 * time.Minute).Unix()
+	claims["exp"] = time.Now().Add(time.Duration(expSecond) * time.Second).Unix()
 	return token
 }
 
@@ -40,8 +41,8 @@ func getTokenClaim(token *jwt.Token) *TokenClaim {
 	return claim
 }
 
-func GenerateAccessToken(tokenSecret string, usrID string) (string, error) {
-	token := mapClaim(usrID)
+func GenerateAccessToken(tokenSecret string, usrID string, expSecond int64) (string, error) {
+	token := mapClaim(usrID, expSecond)
 
 	tokenString, err := token.SignedString([]byte(tokenSecret))
 	if err != nil {
@@ -79,4 +80,16 @@ func ValidateAccessToken(accessToken string, tokenSecret string) (*TokenClaim, b
 
 	claim := getTokenClaim(token)
 	return claim, false, nil
+}
+
+func WithTokenClaimContext(ctx context.Context, claim *TokenClaim) context.Context {
+	return context.WithValue(ctx, TokenClaim{}, claim)
+}
+
+func GetTokenClaimContext(ctx context.Context) *TokenClaim {
+	tmp := ctx.Value(TokenClaim{})
+	if tmp == nil {
+		return nil
+	}
+	return tmp.(*TokenClaim)
 }

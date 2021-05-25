@@ -14,17 +14,23 @@ type oauthCookie struct {
 
 	accessTokenKey          string
 	accessTokenDurationHour time.Duration
+
+	redirectURIKey          string
+	redirectURIDurationHour time.Duration
 }
 
 func NewOAuthCookie(
 	returnURIKey string, returnURIDurationHour time.Duration,
 	accessTokenKey string, accessTokenDurationHour time.Duration,
+	redirectURIKey string, redirectURIDurationHour time.Duration,
 ) port.OAuthCookie {
 	return &oauthCookie{
 		returnURIKey:            returnURIKey,
 		returnURIDurationHour:   returnURIDurationHour,
 		accessTokenKey:          accessTokenKey,
 		accessTokenDurationHour: accessTokenDurationHour,
+		redirectURIKey:          redirectURIKey,
+		redirectURIDurationHour: redirectURIDurationHour,
 	}
 }
 
@@ -56,4 +62,17 @@ func (repo *oauthCookie) WriteAccessToken(w http.ResponseWriter, accessToken str
 
 func (repo *oauthCookie) ClearAccessToken(w http.ResponseWriter) {
 	commons.SetCookie(w, repo.accessTokenKey, "", repo.accessTokenDurationHour)
+}
+func (repo *oauthCookie) ReadRedirectURI(r *http.Request) (string, error) {
+	c, err := r.Cookie(repo.redirectURIKey)
+	if err != nil {
+		return "", err
+	}
+	return c.Value, nil
+}
+func (repo *oauthCookie) WriteRedirectURI(w http.ResponseWriter, redirectURI string) {
+	commons.SetCookie(w, repo.redirectURIKey, redirectURI, repo.redirectURIDurationHour)
+}
+func (repo *oauthCookie) ClearRedirectURI(w http.ResponseWriter) {
+	commons.SetCookie(w, repo.redirectURIKey, "", repo.redirectURIDurationHour)
 }

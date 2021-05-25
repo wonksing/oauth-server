@@ -84,29 +84,36 @@ func main() {
 	// Authorization Code Grant
 	oauthServer.Srv.SetUserAuthorizationHandler(moauth.UserAuthorizeHandler)
 
-	oauthCookie := cookies.NewOAuthCookie("oauth_return_uri", time.Duration(24*365), "access_token", time.Duration(24*365))
+	oauthCookie := cookies.NewOAuthCookie(
+		moauth.KeyReturnURI,
+		time.Duration(24*365),
+		moauth.KeyAccessToken,
+		time.Duration(24*365),
+		moauth.KeyRedirectURI,
+		time.Duration(24*365),
+	)
 	authRepo := filerepo.NewAuthFileRepo()
 
-	oauthUsc := uoauth.NewOAuthUsecase(jwtSecret, oauthCookie, authRepo)
+	oauthUsc := uoauth.NewOAuthUsecase(jwtSecret, 360, oauthCookie, authRepo, doauth.API_OAUTH_ALLOW)
 
 	oauthHandler := doauth.NewOAuthHandler(oauthUsc, oauthServer.Srv, jwtSecret, oauthServer.ClientStore)
-
-	userHandler := duser.NewHttpUserHandler(jwtSecret)
+	userHandler := duser.NewHttpUserHandler(jwtSecret, 360)
+	jwtMiddleware := dmiddleware.NewJWTMiddleware(jwtSecret, moauth.KeyAccessToken, oauthUsc)
 
 	// 테스트용 API
 	http.HandleFunc(duser.API_INDEX, userHandler.IndexHandler)
 	http.HandleFunc(duser.API_LOGIN, userHandler.LoginHandler)
 	http.HandleFunc(duser.API_AUTHENTICATE, userHandler.AuthenticateHandler)
-	http.HandleFunc(duser.API_HELLO, dmiddleware.AuthJWTHandler(userHandler.HelloHandler, jwtSecret, duser.API_LOGIN))
+	http.HandleFunc(duser.API_HELLO, jwtMiddleware.AuthJWTHandler(userHandler.HelloHandler, duser.API_LOGIN))
 
 	// OAuth2 API
 	// 리소스 서버에 인증
 	http.HandleFunc(doauth.API_OAUTH_LOGIN, oauthHandler.OAuthLoginHandler)
 	http.HandleFunc(doauth.API_OAUTH_AUTHENTICATE, oauthHandler.OAuthAuthenticateHandler)
 	// 리소스 서버의 정보 인가
-	http.HandleFunc(doauth.API_OAUTH_ALLOW, dmiddleware.AuthJWTHandler(oauthHandler.OAuthAllowHandler, jwtSecret, doauth.API_OAUTH_LOGIN))
+	http.HandleFunc(doauth.API_OAUTH_ALLOW, jwtMiddleware.AuthJWTHandler(oauthHandler.OAuthAllowHandler, doauth.API_OAUTH_LOGIN))
 	// Authorization Code Grant Type
-	http.HandleFunc(doauth.API_OAUTH_AUTHORIZE, dmiddleware.AuthJWTHandler(oauthHandler.OAuthAuthorizeHandler, jwtSecret, doauth.API_OAUTH_LOGIN))
+	http.HandleFunc(doauth.API_OAUTH_AUTHORIZE, jwtMiddleware.AuthJWTHandlerReturnURI(oauthHandler.OAuthAuthorizeHandler, doauth.API_OAUTH_LOGIN))
 
 	// token request for all types of grant
 	// Client Credentials Grant comes here directly

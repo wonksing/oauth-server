@@ -10,6 +10,10 @@ type OAuthCookie interface {
 	ReadAccessToken(r *http.Request) (string, error)
 	WriteAccessToken(w http.ResponseWriter, accessToken string)
 	ClearAccessToken(w http.ResponseWriter)
+
+	ReadRedirectURI(r *http.Request) (string, error)
+	WriteRedirectURI(w http.ResponseWriter, redirectURI string)
+	ClearRedirectURI(w http.ResponseWriter)
 }
 
 type AuthRepo interface {
