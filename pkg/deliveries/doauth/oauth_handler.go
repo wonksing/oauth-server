@@ -60,14 +60,12 @@ func (h *OAuthHandler) OAuthLoginHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	err := h.oauthUsc.PreAuthenticate(w, r)
+	err := h.oauthUsc.SendToLogin(w, r)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
-	commons.OutputHTML(w, r, HTML_OAUTH_LOGIN)
-	return
 }
 
 // OAuthLoginHandler 로그인 처리.
@@ -86,8 +84,11 @@ func (h *OAuthHandler) OAuthAuthenticateHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	w.Header().Set("Location", API_OAUTH_ALLOW)
-	w.WriteHeader(http.StatusFound)
+	err = h.oauthUsc.SendToAllow(w, r)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
 
 }
 
@@ -95,7 +96,12 @@ func (h *OAuthHandler) OAuthAuthenticateHandler(w http.ResponseWriter, r *http.R
 func (h *OAuthHandler) OAuthAllowHandler(w http.ResponseWriter, r *http.Request) {
 	_ = commons.DumpRequest(os.Stdout, "OAuthAllowHandler", r) // Ignore the error
 
-	commons.OutputHTML(w, r, HTML_OAUTH_ALLOW)
+	// commons.OutputHTML(w, r, HTML_OAUTH_ALLOW)
+	err := h.oauthUsc.SendToAllow(w, r)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
 }
 
 // OAuthAuthHandler 인증&인가 확인 및 code 생성.
@@ -106,23 +112,55 @@ func (h *OAuthHandler) OAuthAuthorizeHandler(w http.ResponseWriter, r *http.Requ
 	err := h.oauthUsc.UserAuthorize(w, r)
 	if err != nil {
 		if err == moauth.ErrorUserDidNotAllow {
-			h.oauthUsc.RedirectToClient(w, r)
+			err = h.oauthUsc.RedirectToClient(w, r)
+			if err != nil {
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
 			return
 		} else if err == moauth.ErrorUserNeedToAllow {
-			h.oauthUsc.RedirectToAllowPage(w, r)
+			err = h.oauthUsc.SendToAllow(w, r)
+			if err != nil {
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
 			return
 		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	h.oauthUsc.ClearOAuthCookie(w)
+	// h.oauthUsc.ClearOAuthCookie(w)
 
 	err = h.Srv.HandleAuthorizeRequest(w, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	}
+}
 
+// OAuthAuthorizeRedirectHandler 리다이렉션 방식으로 인증/인가할때 사용.
+func (h *OAuthHandler) OAuthAuthorizeRedirectHandler(w http.ResponseWriter, r *http.Request) {
+	// commons.DumpRequest(os.Stdout, "OAuthAuthorizeHandler", r)
+
+	// err := h.oauthUsc.UserAuthorize(w, r)
+	// if err != nil {
+	// 	if err == moauth.ErrorUserDidNotAllow {
+	// 		h.oauthUsc.RedirectToClient(w, r)
+	// 		return
+	// 	} else if err == moauth.ErrorUserNeedToAllow {
+	// 		h.oauthUsc.RedirectToAllowPage(w, r)
+	// 		return
+	// 	}
+	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
+	// 	return
+	// }
+
+	// h.oauthUsc.ClearOAuthCookie(w)
+
+	// err = h.Srv.HandleAuthorizeRequest(w, r)
+	// if err != nil {
+	// 	http.Error(w, err.Error(), http.StatusBadRequest)
+	// }
 }
 
 func (h *OAuthHandler) OAuthTokenHandler(w http.ResponseWriter, r *http.Request) {

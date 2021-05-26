@@ -2,14 +2,13 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/spf13/viper"
 	"github.com/wonksing/oauth-server/pkg/adaptors/cookies"
-	"github.com/wonksing/oauth-server/pkg/adaptors/filerepo"
+	"github.com/wonksing/oauth-server/pkg/adaptors/repositories"
 	"github.com/wonksing/oauth-server/pkg/commons"
 	"github.com/wonksing/oauth-server/pkg/deliveries/dmiddleware"
 	"github.com/wonksing/oauth-server/pkg/deliveries/doauth"
@@ -92,9 +91,9 @@ func main() {
 		moauth.KeyRedirectURI,
 		time.Duration(24*365),
 	)
-	authRepo := filerepo.NewAuthFileRepo()
+	authRepo := repositories.NewOAuthSelfRepo(oauthCookie, doauth.HTML_OAUTH_LOGIN, doauth.HTML_OAUTH_ALLOW)
 
-	oauthUsc := uoauth.NewOAuthUsecase(jwtSecret, 360, oauthCookie, authRepo, doauth.API_OAUTH_ALLOW)
+	oauthUsc := uoauth.NewOAuthUsecase(jwtSecret, 360, authRepo, doauth.API_OAUTH_ALLOW)
 
 	oauthHandler := doauth.NewOAuthHandler(oauthUsc, oauthServer.Srv, jwtSecret, oauthServer.ClientStore)
 	userHandler := duser.NewHttpUserHandler(jwtSecret, 360)
@@ -107,13 +106,15 @@ func main() {
 	http.HandleFunc(duser.API_HELLO, jwtMiddleware.AuthJWTHandler(userHandler.HelloHandler, duser.API_LOGIN))
 
 	// OAuth2 API
-	// 리소스 서버에 인증
-	http.HandleFunc(doauth.API_OAUTH_LOGIN, oauthHandler.OAuthLoginHandler)
+	// 리소스 서버에 인증하러 보내기
+	// http.HandleFunc(doauth.API_OAUTH_LOGIN, oauthHandler.OAuthLoginHandler)
+	// 리소스 서버에서 인증하기
 	http.HandleFunc(doauth.API_OAUTH_AUTHENTICATE, oauthHandler.OAuthAuthenticateHandler)
-	// 리소스 서버의 정보 인가
+	// 리소스 서버의 정보 인가하러 보내기
 	http.HandleFunc(doauth.API_OAUTH_ALLOW, jwtMiddleware.AuthJWTHandler(oauthHandler.OAuthAllowHandler, doauth.API_OAUTH_LOGIN))
 	// Authorization Code Grant Type
 	http.HandleFunc(doauth.API_OAUTH_AUTHORIZE, jwtMiddleware.AuthJWTHandlerReturnURI(oauthHandler.OAuthAuthorizeHandler, doauth.API_OAUTH_LOGIN))
+	// http.HandleFunc("/oauth/authorize/redirect", oauthHandler.OAuthAuthorizeHandler)
 
 	// token request for all types of grant
 	// Client Credentials Grant comes here directly
@@ -129,5 +130,5 @@ func main() {
 	log.Printf("Server is running at %v.\n", addr)
 	log.Printf("Point your OAuth client Auth endpoint to %s%s", "http://"+addr, "/oauth/authorize")
 	log.Printf("Point your OAuth client Token endpoint to %s%s", "http://"+addr, "/oauth/token")
-	log.Fatal(http.ListenAndServe(fmt.Sprintf("%v", addr), nil))
+	log.Fatal(http.ListenAndServe(addr, nil))
 }

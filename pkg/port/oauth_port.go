@@ -17,5 +17,15 @@ type OAuthCookie interface {
 }
 
 type AuthRepo interface {
-	Authenticate(userID, userPW string) error
+	// SetReturnURI 사용자가 Code Authorization을 최초로 요청했을 때
+	// 인증이 되어 있지 않다면 return uri를 쿠키에 저장한다.
+	SetReturnURI(w http.ResponseWriter, r *http.Request) error
+	SetRedirectURI(w http.ResponseWriter, r *http.Request) error
+
+	RedirectToClient(w http.ResponseWriter, r *http.Request) error
+
+	SendToLogin(w http.ResponseWriter, r *http.Request) error
+	Authenticate(w http.ResponseWriter, r *http.Request, jwtSecret string, jwtExpiresSecond int64) error
+	SendToAllow(w http.ResponseWriter, r *http.Request) error
+	UserAuthorize(w http.ResponseWriter, r *http.Request) error
 }

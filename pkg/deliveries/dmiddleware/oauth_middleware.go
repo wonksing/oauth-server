@@ -60,7 +60,7 @@ func (m *JWTMiddleware) AuthJWTHandler(next http.HandlerFunc, redirectUriOnFail 
 			// }
 			// commons.SetCookie(w, "access_token", "", time.Duration(24*365))
 
-			m.oauthUsc.ClearOAuthUserCookie(w)
+			// m.oauthUsc.ClearOAuthUserCookie(w)
 
 			w.Header().Set("Location", redirectUriOnFail)
 			w.WriteHeader(http.StatusFound)
@@ -77,10 +77,15 @@ func (m *JWTMiddleware) AuthJWTHandlerReturnURI(next http.HandlerFunc, redirectU
 
 		claim, err := authJWT(r, m.jwtSecret, m.accessTokenKey)
 		if err != nil {
-			m.oauthUsc.SetReturnURI(w, r)
-			m.oauthUsc.SetRedirectURI(w, r)
-			w.Header().Set("Location", redirectUriOnFail)
-			w.WriteHeader(http.StatusFound)
+			// m.oauthUsc.SetReturnURI(w, r)
+			// m.oauthUsc.SetRedirectURI(w, r)
+			// w.Header().Set("Location", redirectUriOnFail)
+			// w.WriteHeader(http.StatusFound)
+			err = m.oauthUsc.SendToLogin(w, r)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 			return
 		}
 		ctx := mjwt.WithTokenClaimContext(r.Context(), claim)
