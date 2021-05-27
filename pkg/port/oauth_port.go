@@ -23,6 +23,8 @@ type AuthRepo interface {
 	GetReturnURI(r *http.Request) (string, error)
 	ClearReturnURI(w http.ResponseWriter)
 	SetRedirectURI(w http.ResponseWriter, r *http.Request) error
+	GetRedirectURI(r *http.Request) (string, error)
+	ClearRedirectURI(w http.ResponseWriter)
 
 	RedirectToClient(w http.ResponseWriter, r *http.Request) error
 

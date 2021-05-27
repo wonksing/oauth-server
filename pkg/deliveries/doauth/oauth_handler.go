@@ -2,12 +2,9 @@ package doauth
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
-	"time"
 
-	"github.com/go-oauth2/oauth2/v4/models"
 	"github.com/go-oauth2/oauth2/v4/server"
 	"github.com/go-oauth2/oauth2/v4/store"
 	"github.com/wonksing/oauth-server/pkg/commons"
@@ -207,7 +204,7 @@ func (h *OAuthHandler) OAuthAuthorizeRedirectHandler(w http.ResponseWriter, r *h
 func (h *OAuthHandler) OAuthTokenHandler(w http.ResponseWriter, r *http.Request) {
 	commons.DumpRequest(os.Stdout, "OAuthTokenHandler", r) // Ignore the error
 
-	err := h.Srv.HandleTokenRequest(w, r)
+	err := h.oauthUsc.RequestToken(w, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -216,20 +213,26 @@ func (h *OAuthHandler) OAuthTokenHandler(w http.ResponseWriter, r *http.Request)
 func (h *OAuthHandler) OAuthValidateTokenHandler(w http.ResponseWriter, r *http.Request) {
 	commons.DumpRequest(os.Stdout, "OAuthValidateTokenHandler", r) // Ignore the error
 
-	token, err := h.Srv.ValidationBearerToken(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	commons.VerifyJWT(h.JwtSecret, token.GetAccess())
+	// token, err := h.Srv.ValidationBearerToken(r)
+	// if err != nil {
+	// 	http.Error(w, err.Error(), http.StatusBadRequest)
+	// 	return
+	// }
+	// commons.VerifyJWT(h.JwtSecret, token.GetAccess())
 
-	t := token.GetAccessCreateAt().Add(token.GetAccessExpiresIn())
-	expiresIn := int64(time.Until(t).Seconds())
-	data := map[string]interface{}{
-		// "expires_in": int64(token.GetAccessCreateAt().Add(token.GetAccessExpiresIn()).Sub(time.Now()).Seconds()),
-		"expires_in": expiresIn,
-		"client_id":  token.GetClientID(),
-		"user_id":    token.GetUserID(),
+	// t := token.GetAccessCreateAt().Add(token.GetAccessExpiresIn())
+	// expiresIn := int64(time.Until(t).Seconds())
+	// data := map[string]interface{}{
+	// 	// "expires_in": int64(token.GetAccessCreateAt().Add(token.GetAccessExpiresIn()).Sub(time.Now()).Seconds()),
+	// 	"expires_in": expiresIn,
+	// 	"client_id":  token.GetClientID(),
+	// 	"user_id":    token.GetUserID(),
+	// }
+
+	data, err := h.oauthUsc.VerifyToken(w, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	e := json.NewEncoder(w)
 	e.SetIndent("", "  ")
@@ -246,17 +249,26 @@ func (h *OAuthHandler) CredentialHandler(w http.ResponseWriter, r *http.Request)
 	clientSecret := r.FormValue("client_secret")
 	clientDomain := r.FormValue("client_domain")
 
-	err := h.ClientStore.Set(clientID, &models.Client{
-		ID:     clientID,
-		Secret: clientSecret,
-		Domain: clientDomain,
-	})
+	data, err := h.oauthUsc.AddClientCredential(clientID, clientSecret, clientDomain)
 	if err != nil {
-		fmt.Println(err.Error())
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	e := json.NewEncoder(w)
+	e.SetIndent("", "  ")
+	e.Encode(data)
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"CLIENT_ID": clientID, "CLIENT_SECRET": clientSecret})
+	// err := h.ClientStore.Set(clientID, &models.Client{
+	// 	ID:     clientID,
+	// 	Secret: clientSecret,
+	// 	Domain: clientDomain,
+	// })
+	// if err != nil {
+	// 	fmt.Println(err.Error())
+	// 	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	// 	return
+	// }
+
+	// w.Header().Set("Content-Type", "application/json")
+	// json.NewEncoder(w).Encode(map[string]string{"CLIENT_ID": clientID, "CLIENT_SECRET": clientSecret})
 }

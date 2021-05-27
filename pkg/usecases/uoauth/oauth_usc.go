@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
+	"time"
 
+	"github.com/go-oauth2/oauth2/models"
 	"github.com/wonksing/oauth-server/pkg/commons"
 	"github.com/wonksing/oauth-server/pkg/models/moauth"
 	"github.com/wonksing/oauth-server/pkg/port"
@@ -36,6 +39,11 @@ type Usecase interface {
 	// 정보가 없다면 url parameter를 그대로 oauth 서버에 전달하여 authorization code를 사용자에게
 	// 전달한다.
 	GrantAuthorizeCode(w http.ResponseWriter, r *http.Request) error
+
+	RequestToken(w http.ResponseWriter, r *http.Request) error
+	VerifyToken(w http.ResponseWriter, r *http.Request) (map[string]interface{}, error)
+
+	AddClientCredential(clientID, clientSecret, clientDomain string) (map[string]interface{}, error)
 }
 
 type oauthUsecase struct {
@@ -134,6 +142,7 @@ func (u *oauthUsecase) GrantAuthorizeCode(w http.ResponseWriter, r *http.Request
 		return err
 	}
 	u.authRepo.ClearReturnURI(w)
+	u.authRepo.ClearRedirectURI(w)
 	if returnURI != "" {
 		// oauth에 전달할 파라메터
 		v, err := url.ParseQuery(returnURI)
@@ -158,4 +167,47 @@ func (u *oauthUsecase) GrantAuthorizeCode(w http.ResponseWriter, r *http.Request
 	// h.oauthUsc.ClearOAuthCookie(w)
 
 	return u.oauthServer.Srv.HandleAuthorizeRequest(w, r)
+}
+
+func (u *oauthUsecase) RequestToken(w http.ResponseWriter, r *http.Request) error {
+	return u.oauthServer.Srv.HandleTokenRequest(w, r)
+}
+
+func (u *oauthUsecase) VerifyToken(w http.ResponseWriter, r *http.Request) (map[string]interface{}, error) {
+	commons.DumpRequest(os.Stdout, "OAuthValidateTokenHandler", r) // Ignore the error
+
+	token, err := u.oauthServer.Srv.ValidationBearerToken(r)
+	if err != nil {
+		return nil, err
+	}
+	commons.VerifyJWT(u.jwtSecret, token.GetAccess())
+
+	t := token.GetAccessCreateAt().Add(token.GetAccessExpiresIn())
+	expiresIn := int64(time.Until(t).Seconds())
+	data := map[string]interface{}{
+		// "expires_in": int64(token.GetAccessCreateAt().Add(token.GetAccessExpiresIn()).Sub(time.Now()).Seconds()),
+		"expires_in": expiresIn,
+		"client_id":  token.GetClientID(),
+		"user_id":    token.GetUserID(),
+	}
+	// e := json.NewEncoder(w)
+	// e.SetIndent("", "  ")
+	// e.Encode(data)
+	return data, nil
+}
+
+func (u *oauthUsecase) AddClientCredential(clientID, clientSecret, clientDomain string) (map[string]interface{}, error) {
+
+	err := u.oauthServer.ClientStore.Set(clientID, &models.Client{
+		ID:     clientID,
+		Secret: clientSecret,
+		Domain: clientDomain,
+	})
+	if err != nil {
+		return nil, err
+	}
+	data := map[string]interface{}{"CLIENT_ID": clientID, "CLIENT_SECRET": clientSecret}
+	return data, nil
+	// w.Header().Set("Content-Type", "application/json")
+	// json.NewEncoder(w).Encode(map[string]string{"CLIENT_ID": clientID, "CLIENT_SECRET": clientSecret})
 }
