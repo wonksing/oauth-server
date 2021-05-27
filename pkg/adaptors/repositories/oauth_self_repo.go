@@ -63,6 +63,14 @@ func (repo *OAuthSelfRepo) SetRedirectURI(w http.ResponseWriter, r *http.Request
 	return nil
 }
 
+func (repo *OAuthSelfRepo) GetRedirectURI(r *http.Request) (string, error) {
+	return repo.oauthCookie.ReadRedirectURI(r)
+}
+
+func (repo *OAuthSelfRepo) ClearRedirectURI(w http.ResponseWriter) {
+	repo.oauthCookie.ClearRedirectURI(w)
+}
+
 func (repo *OAuthSelfRepo) RedirectToClient(w http.ResponseWriter, r *http.Request) error {
 	redirectURI, err := repo.oauthCookie.ReadRedirectURI(r)
 	repo.oauthCookie.ClearRedirectURI(w)
