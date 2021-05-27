@@ -14,6 +14,7 @@ import (
 	"github.com/wonksing/oauth-server/pkg/port"
 )
 
+// Usecase OAuth input port
 type Usecase interface {
 
 	// SetReturnURI 사용자가 Code Authorization 요청 직후
@@ -180,6 +181,7 @@ func (u *oauthUsecase) VerifyToken(w http.ResponseWriter, r *http.Request) (map[
 		"expires_in": expiresIn,
 		"client_id":  token.GetClientID(),
 		"user_id":    token.GetUserID(),
+		"scope":      token.GetScope(),
 	}
 	// e := json.NewEncoder(w)
 	// e.SetIndent("", "  ")

@@ -16,6 +16,7 @@ import (
 	"github.com/wonksing/oauth-server/pkg/models/moauth"
 	"github.com/wonksing/oauth-server/pkg/usecases/uoauth"
 
+	"github.com/go-oauth2/oauth2/v4"
 	"github.com/go-oauth2/oauth2/v4/models"
 )
 
@@ -76,7 +77,27 @@ func main() {
 			Domain: domain,
 		})
 	}
+	// oauthServer.Srv.SetResponseErrorHandler(func(re *oauthErrors.Response) {
 
+	// })
+	oauthServer.Srv.SetAuthorizeScopeHandler(func(w http.ResponseWriter, r *http.Request) (scope string, err error) {
+		// authorization code grant type일때 범위
+		scope = "authorization code"
+		err = nil
+		return
+	})
+	oauthServer.Srv.SetClientScopeHandler(func(tgr *oauth2.TokenGenerateRequest) (allowed bool, err error) {
+		// client credential grant type일때 범위
+
+		// if tgr.Scope == "all" {
+		// 	allowed = false
+		// 	return
+		// }
+		tgr.Scope = "client credential"
+		allowed = true
+		err = nil
+		return
+	})
 	// Password credentials
 	oauthServer.Srv.SetPasswordAuthorizationHandler(moauth.PasswordAuthorizeHandler)
 
