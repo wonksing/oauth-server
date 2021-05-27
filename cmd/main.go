@@ -91,9 +91,13 @@ func main() {
 		moauth.KeyRedirectURI,
 		time.Duration(24*365),
 	)
-	authRepo := repositories.NewOAuthSelfRepo(oauthCookie, doauth.HTML_OAUTH_LOGIN, doauth.HTML_OAUTH_ALLOW)
+	authRepo := repositories.NewOAuthSelfRepo(
+		oauthCookie,
+		doauth.API_OAUTH_LOGIN,
+		doauth.API_OAUTH_LOGIN_ACCESS,
+	)
 
-	oauthUsc := uoauth.NewOAuthUsecase(jwtSecret, 360, authRepo, doauth.API_OAUTH_ALLOW)
+	oauthUsc := uoauth.NewOAuthUsecase(oauthServer, jwtSecret, 360, authRepo)
 
 	oauthHandler := doauth.NewOAuthHandler(oauthUsc, oauthServer.Srv, jwtSecret, oauthServer.ClientStore)
 	userHandler := duser.NewHttpUserHandler(jwtSecret, 360)
@@ -107,13 +111,14 @@ func main() {
 
 	// OAuth2 API
 	// 리소스 서버에 인증하러 보내기
-	// http.HandleFunc(doauth.API_OAUTH_LOGIN, oauthHandler.OAuthLoginHandler)
+	http.HandleFunc(doauth.API_OAUTH_LOGIN, oauthHandler.LoginHandler)
 	// 리소스 서버에서 인증하기
-	http.HandleFunc(doauth.API_OAUTH_AUTHENTICATE, oauthHandler.OAuthAuthenticateHandler)
+	http.HandleFunc(doauth.API_OAUTH_LOGIN_AUTHENTICATE, oauthHandler.AuthenticateHandler)
 	// 리소스 서버의 정보 인가하러 보내기
-	http.HandleFunc(doauth.API_OAUTH_ALLOW, jwtMiddleware.AuthJWTHandler(oauthHandler.OAuthAllowHandler, doauth.API_OAUTH_LOGIN))
+	http.HandleFunc(doauth.API_OAUTH_LOGIN_ACCESS, jwtMiddleware.AuthJWTHandlerReturnURI(oauthHandler.AccessHandler))
+	http.HandleFunc(doauth.API_OAUTH_LOGIN_ACCESS_AUTHORIZE, jwtMiddleware.AuthJWTHandlerReturnURI(oauthHandler.AuthorizeAccessHandler))
 	// Authorization Code Grant Type
-	http.HandleFunc(doauth.API_OAUTH_AUTHORIZE, jwtMiddleware.AuthJWTHandlerReturnURI(oauthHandler.OAuthAuthorizeHandler, doauth.API_OAUTH_LOGIN))
+	http.HandleFunc(doauth.API_OAUTH_AUTHORIZE, jwtMiddleware.AuthJWTHandlerReturnURI(oauthHandler.UserAuthorizeHandler))
 	// http.HandleFunc("/oauth/authorize/redirect", oauthHandler.OAuthAuthorizeHandler)
 
 	// token request for all types of grant

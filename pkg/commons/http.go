@@ -30,6 +30,7 @@ func OutputHTML(w http.ResponseWriter, req *http.Request, filename string) {
 	defer file.Close()
 	fi, _ := file.Stat()
 	http.ServeContent(w, req, file.Name(), fi.ModTime(), file)
+	// http.ServeContent(w, req, file.Name(), time.Now(), file)
 }
 
 func DumpRequest(writer io.Writer, header string, r *http.Request) error {

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/wonksing/oauth-server/pkg/models/mjwt"
+	"github.com/wonksing/oauth-server/pkg/models/moauth"
 	"github.com/wonksing/oauth-server/pkg/usecases/uoauth"
 )
 
@@ -72,16 +73,12 @@ func (m *JWTMiddleware) AuthJWTHandler(next http.HandlerFunc, redirectUriOnFail 
 }
 
 // AuthJWTHandler to verify the request
-func (m *JWTMiddleware) AuthJWTHandlerReturnURI(next http.HandlerFunc, redirectUriOnFail string) http.HandlerFunc {
+func (m *JWTMiddleware) AuthJWTHandlerReturnURI(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		claim, err := authJWT(r, m.jwtSecret, m.accessTokenKey)
 		if err != nil {
-			// m.oauthUsc.SetReturnURI(w, r)
-			// m.oauthUsc.SetRedirectURI(w, r)
-			// w.Header().Set("Location", redirectUriOnFail)
-			// w.WriteHeader(http.StatusFound)
-			err = m.oauthUsc.SendToLogin(w, r)
+			err = m.oauthUsc.Login(w, r)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -89,6 +86,7 @@ func (m *JWTMiddleware) AuthJWTHandlerReturnURI(next http.HandlerFunc, redirectU
 			return
 		}
 		ctx := mjwt.WithTokenClaimContext(r.Context(), claim)
+		ctx = moauth.WithUserIDContext(r.Context(), claim.UsrID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }

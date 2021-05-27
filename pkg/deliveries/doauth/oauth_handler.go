@@ -11,21 +11,22 @@ import (
 	"github.com/go-oauth2/oauth2/v4/server"
 	"github.com/go-oauth2/oauth2/v4/store"
 	"github.com/wonksing/oauth-server/pkg/commons"
-	"github.com/wonksing/oauth-server/pkg/models/moauth"
 	"github.com/wonksing/oauth-server/pkg/usecases/uoauth"
 )
 
 const (
-	API_OAUTH_LOGIN          = "/oauth/login"
-	API_OAUTH_AUTHENTICATE   = "/oauth/authenticate"
-	API_OAUTH_ALLOW          = "/oauth/allow"
-	API_OAUTH_AUTHORIZE      = "/oauth/authorize"
+	API_OAUTH_LOGIN                  = "/oauth/login"                   // present login page
+	API_OAUTH_LOGIN_AUTHENTICATE     = "/oauth/login/_authenticate"     // validate user id and password
+	API_OAUTH_LOGIN_ACCESS           = "/oauth/login/access"            // present access page
+	API_OAUTH_LOGIN_ACCESS_AUTHORIZE = "/oauth/login/access/_authorize" // authorize access
+	API_OAUTH_AUTHORIZE              = "/oauth/authorize"               // oauth code grant
+
 	API_OAUTH_TOKEN          = "/oauth/token"
 	API_OAUTH_TOKEN_VALIDATE = "/oauth/token/_validate"
 	API_OAUTH_CREDENTIALS    = "/oauth/credentials"
 
-	HTML_OAUTH_LOGIN = "static/oauth/login.html"
-	HTML_OAUTH_ALLOW = "static/oauth/allow.html"
+	HTML_OAUTH_LOGIN  = "static/oauth/login.html"
+	HTML_OAUTH_ACCESS = "static/oauth/access.html"
 )
 
 type OAuthHandler struct {
@@ -52,7 +53,7 @@ func NewOAuthHandler(
 }
 
 // LoginHandler 로그인 페이지로 보낸다.
-func (h *OAuthHandler) OAuthLoginHandler(w http.ResponseWriter, r *http.Request) {
+func (h *OAuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	commons.DumpRequest(os.Stdout, "OAuthLoginHandler", r) // Ignore the error
 
 	if r.Method != "GET" {
@@ -60,17 +61,17 @@ func (h *OAuthHandler) OAuthLoginHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	err := h.oauthUsc.SendToLogin(w, r)
-	if err != nil {
+	if !commons.FileExists(HTML_OAUTH_LOGIN) {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
+	commons.OutputHTML(w, r, HTML_OAUTH_LOGIN)
 
 }
 
 // OAuthLoginHandler 로그인 처리.
 // GET 메소드면 로그인 페이지로 보내고, POST면 아이디와 비번을 검증한다.
-func (h *OAuthHandler) OAuthAuthenticateHandler(w http.ResponseWriter, r *http.Request) {
+func (h *OAuthHandler) AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 	commons.DumpRequest(os.Stdout, "OAuthAuthenticateHandler", r) // Ignore the error
 
 	if r.Method != "POST" {
@@ -84,7 +85,7 @@ func (h *OAuthHandler) OAuthAuthenticateHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	err = h.oauthUsc.SendToAllow(w, r)
+	err = h.oauthUsc.Access(w, r)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -92,47 +93,87 @@ func (h *OAuthHandler) OAuthAuthenticateHandler(w http.ResponseWriter, r *http.R
 
 }
 
-// OAuthAllowHandler 허용/인가 페이지로 보내기
-func (h *OAuthHandler) OAuthAllowHandler(w http.ResponseWriter, r *http.Request) {
-	_ = commons.DumpRequest(os.Stdout, "OAuthAllowHandler", r) // Ignore the error
+// AccessHandler 엑세스 허용 페이지로 보낸다.
+func (h *OAuthHandler) AccessHandler(w http.ResponseWriter, r *http.Request) {
+	commons.DumpRequest(os.Stdout, "OAuthLoginHandler", r) // Ignore the error
 
-	// commons.OutputHTML(w, r, HTML_OAUTH_ALLOW)
-	err := h.oauthUsc.SendToAllow(w, r)
-	if err != nil {
+	if r.Method != "GET" {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
+
+	if !commons.FileExists(HTML_OAUTH_ACCESS) {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	commons.OutputHTML(w, r, HTML_OAUTH_ACCESS)
 }
 
-// OAuthAuthHandler 인증&인가 확인 및 code 생성.
-// 로그인 후 권한 인가를 허용한 사용자인 경우 auth code를 생성하여 redirect_uri 로 보낸다.
-func (h *OAuthHandler) OAuthAuthorizeHandler(w http.ResponseWriter, r *http.Request) {
-	commons.DumpRequest(os.Stdout, "OAuthAuthorizeHandler", r)
+// AuthorizeAccessHandler 엑세스를 허용/거절한다
+func (h *OAuthHandler) AuthorizeAccessHandler(w http.ResponseWriter, r *http.Request) {
+	_ = commons.DumpRequest(os.Stdout, "AuthorizeAccessHandler", r) // Ignore the error
 
-	err := h.oauthUsc.UserAuthorize(w, r)
+	if r.Method != "POST" {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	ctx, err := h.oauthUsc.AuthorizeAccess(w, r)
 	if err != nil {
-		if err == moauth.ErrorUserDidNotAllow {
-			err = h.oauthUsc.RedirectToClient(w, r)
-			if err != nil {
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-				return
-			}
-			return
-		} else if err == moauth.ErrorUserNeedToAllow {
-			err = h.oauthUsc.SendToAllow(w, r)
-			if err != nil {
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-				return
-			}
-			return
-		}
+		// if err == moauth.ErrorUserDidNotAllow {
+		// 	err = h.oauthUsc.RedirectToClient(w, r)
+		// 	if err == nil {
+		// 		return
+		// 	}
+		// } else if err == moauth.ErrorUserNeedToAllow {
+		// 	err = h.oauthUsc.Access(w, r)
+		// 	if err == nil {
+		// 		return
+		// 	}
+		// }
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// h.oauthUsc.ClearOAuthCookie(w)
+	h.UserAuthorizeHandler(w, r.WithContext(ctx))
 
-	err = h.Srv.HandleAuthorizeRequest(w, r)
+}
+
+// UserAuthorizeHandler 인증&인가 확인 및 code 생성.
+// 로그인 후 권한 인가를 허용한 사용자인 경우 auth code를 생성하여 redirect_uri 로 보낸다.
+func (h *OAuthHandler) UserAuthorizeHandler(w http.ResponseWriter, r *http.Request) {
+	commons.DumpRequest(os.Stdout, "UserAuthorizeHandler", r)
+
+	err := h.oauthUsc.GrantAuthorizeCode(w, r)
+	// if err != nil {
+	// 	if err == moauth.ErrorUserDidNotAllow {
+	// 		err = h.oauthUsc.RedirectToClient(w, r)
+	// 		if err != nil {
+	// 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	// 			return
+	// 		}
+	// 		return
+	// 	} else if err == moauth.ErrorUserNeedToAllow {
+	// 		h.oauthUsc.Access(w, r)
+	// 		if err != nil {
+	// 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	// 			return
+	// 		}
+	// 		return
+	// 	} else if err == moauth.ErrorUserIDNotFound {
+	// 		err = h.oauthUsc.Login(w, r)
+	// 		if err != nil {
+	// 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	// 			return
+	// 		}
+	// 		return
+	// 	}
+	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
+	// 	return
+	// }
+
+	// // h.oauthUsc.ClearOAuthCookie(w)
+
+	// err = h.Srv.HandleAuthorizeRequest(w, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	}
