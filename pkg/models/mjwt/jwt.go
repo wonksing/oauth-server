@@ -8,6 +8,8 @@ import (
 	"github.com/dgrijalva/jwt-go"
 )
 
+// TokenClaim JWT 토큰 클레임 구조체이다.
+// mjwt 패키지 안에서만 매핑하여 저장하고 가져오도록 하자
 type TokenClaim struct {
 	UsrID string  `json:"usr_id"`
 	Exp   float64 `json:"exp"`
