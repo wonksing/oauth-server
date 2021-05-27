@@ -16,33 +16,38 @@ import (
 
 type Usecase interface {
 
-	// SetReturnURI 사용자가 Code Authorization을 최초로 요청했을 때
+	// SetReturnURI 사용자가 Code Authorization 요청 직후
 	// 인증이 되어 있지 않다면 return uri를 쿠키에 저장한다.
 	SetReturnURI(w http.ResponseWriter, r *http.Request) error
+	// SetRedirectURI 인가를 거부했을 때 돌려보내줄 URI
 	SetRedirectURI(w http.ResponseWriter, r *http.Request) error
-
+	// RedirectToClient Client에게 돌려보내기(인가 거부시)
 	RedirectToClient(w http.ResponseWriter, r *http.Request) error
 
-	// Login
-	// 로그인 페이지로 보내기 전 쿠키 설정
+	// Login 로그인 페이지로 보내기
 	Login(w http.ResponseWriter, r *http.Request) error
 
 	// Authenticate 사용자 인증
-	// 사용자의 ID와 PW 검증, return uri 유무 확인 후 이상 없으면
-	// access token을 생성하여 쿠키에 저장한다.
+	// 사용자의 ID와 PW 검사, return uri 유무 확인 후 이상 없으면
+	// access token을 생성하여 쿠키에 저장하고 인가 페이지로 보낸다.
 	Authenticate(w http.ResponseWriter, r *http.Request) error
 
+	// Access 인가 페이지로 보낸다
+	// TODO rename this function name
 	Access(w http.ResponseWriter, r *http.Request) error
+	// AuthorizeAccess 접근을 인가한다. 허용 또는 거부
+	// TODO 여기 아니면 Grant에서 Scope을 처리해야한다.
 	AuthorizeAccess(w http.ResponseWriter, r *http.Request) (context.Context, error)
 
-	// UserAuthorize 사용자가 인증되어 있는 상태에서 먼저 쿠키에 있는 return uri를 확인해 보고
-	// 정보가 없다면 url parameter를 그대로 oauth 서버에 전달하여 authorization code를 사용자에게
-	// 전달한다.
+	// GrantAuthorizeCode Authorization Code를 발급하여 클라이언트에 전달한다.
+	// 사용자 인증과 인가 확인 후 발급한다.
 	GrantAuthorizeCode(w http.ResponseWriter, r *http.Request) error
-
+	// RequestToken AccessToken을 발급해준다
 	RequestToken(w http.ResponseWriter, r *http.Request) error
+	// VerifyToken 토큰을 검증한다.
 	VerifyToken(w http.ResponseWriter, r *http.Request) (map[string]interface{}, error)
-
+	// AddClientCredential 새로운 클라이언트를 추가한다.
+	// Store에 자동으로 저장되지는 않는다.
 	AddClientCredential(clientID, clientSecret, clientDomain string) (map[string]interface{}, error)
 }
 
@@ -144,27 +149,13 @@ func (u *oauthUsecase) GrantAuthorizeCode(w http.ResponseWriter, r *http.Request
 	u.authRepo.ClearReturnURI(w)
 	u.authRepo.ClearRedirectURI(w)
 	if returnURI != "" {
-		// oauth에 전달할 파라메터
+		// oauth에 전달할 파라메터 다시 붙여주기(client_id, redirect_uri 등)
 		v, err := url.ParseQuery(returnURI)
 		if err != nil {
 			return err
 		}
 		r.Form = v
 	}
-
-	// err = u.authRepo.UserAuthorize(w, r)
-	// if err != nil {
-	// 	if err == moauth.ErrorUserDidNotAllow {
-	// 		return u.RedirectToClient(w, r)
-	// 	} else if err == moauth.ErrorUserNeedToAllow {
-	// 		return u.Access(w, r)
-	// 	} else if err == moauth.ErrorUserIDNotFound {
-	// 		return u.Login(w, r)
-	// 	}
-	// 	return err
-	// }
-
-	// h.oauthUsc.ClearOAuthCookie(w)
 
 	return u.oauthServer.Srv.HandleAuthorizeRequest(w, r)
 }
