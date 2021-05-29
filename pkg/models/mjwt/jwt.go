@@ -1,25 +1,50 @@
-package commons
+package mjwt
 
 import (
-	"errors"
+	"context"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
 )
 
+// TokenClaim JWT 토큰 클레임 구조체이다.
+// mjwt 패키지 안에서만 매핑하여 저장하고 가져오도록 하자
 type TokenClaim struct {
 	UsrID string  `json:"usr_id"`
 	Exp   float64 `json:"exp"`
 }
 
-func GenAccessTokenJWT(tokenSecret string, usrID string) (string, error) {
+func NewTokenClaim(usrID string, exp float64) *TokenClaim {
+	return &TokenClaim{
+		UsrID: usrID,
+		Exp:   exp,
+	}
+}
 
+func mapClaim(usrID string, expSecond int64) *jwt.Token {
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := token.Claims.(jwt.MapClaims)
 	claims["usr_id"] = usrID
-	claims["exp"] = time.Now().Add(1 * time.Minute).Unix()
+	claims["exp"] = time.Now().Add(time.Duration(expSecond) * time.Second).Unix()
+	return token
+}
+
+func getTokenClaim(token *jwt.Token) *TokenClaim {
+	if token == nil {
+		return nil
+	}
+	if token.Claims.Valid() != nil {
+		return nil
+	}
+
+	c := token.Claims.(jwt.MapClaims)
+	claim := NewTokenClaim(c["usr_id"].(string), c["exp"].(float64))
+	return claim
+}
+
+func GenerateAccessToken(tokenSecret string, usrID string, expSecond int64) (string, error) {
+	token := mapClaim(usrID, expSecond)
 
 	tokenString, err := token.SignedString([]byte(tokenSecret))
 	if err != nil {
@@ -46,30 +71,27 @@ func ValidateAccessToken(accessToken string, tokenSecret string) (*TokenClaim, b
 		return []byte(tokenSecret), nil
 	})
 
-	var claim *TokenClaim
-	if token != nil && token.Claims.Valid() != nil {
-		c := token.Claims.(jwt.MapClaims)
-		claim = &TokenClaim{
-			UsrID: c["usr_id"].(string),
-			Exp:   c["exp"].(float64),
-		}
-	}
 	if err != nil {
 		v, _ := err.(*jwt.ValidationError)
-		if v.Errors == jwt.ValidationErrorExpired {
+		if v.Errors == jwt.ValidationErrorExpired && token.Valid {
+			claim := getTokenClaim(token)
 			return claim, true, err
 		}
 		return nil, false, err
 	}
 
-	if token.Valid {
-		c := token.Claims.(jwt.MapClaims)
-		claim = &TokenClaim{
-			UsrID: c["usr_id"].(string),
-			Exp:   c["exp"].(float64),
-		}
-		return claim, false, nil
-	}
+	claim := getTokenClaim(token)
+	return claim, false, nil
+}
 
-	return nil, false, errors.New(http.StatusText(http.StatusUnauthorized))
+func WithTokenClaimContext(ctx context.Context, claim *TokenClaim) context.Context {
+	return context.WithValue(ctx, TokenClaim{}, claim)
+}
+
+func GetTokenClaimContext(ctx context.Context) *TokenClaim {
+	tmp := ctx.Value(TokenClaim{})
+	if tmp == nil {
+		return nil
+	}
+	return tmp.(*TokenClaim)
 }

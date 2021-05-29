@@ -1,16 +1,31 @@
 package main
 
 import (
+	"errors"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
+
+	oauthErrors "github.com/go-oauth2/oauth2/v4/errors"
 
 	"github.com/spf13/viper"
+	"github.com/wonksing/oauth-server/pkg/adaptors/cookies"
+	"github.com/wonksing/oauth-server/pkg/adaptors/repositories"
+	"github.com/wonksing/oauth-server/pkg/adaptors/views"
 	"github.com/wonksing/oauth-server/pkg/commons"
-	"github.com/wonksing/oauth-server/pkg/deliveries/dcommon"
+	"github.com/wonksing/oauth-server/pkg/deliveries/dmiddleware"
 	"github.com/wonksing/oauth-server/pkg/deliveries/doauth"
+	"github.com/wonksing/oauth-server/pkg/deliveries/duser"
+	"github.com/wonksing/oauth-server/pkg/models/merror"
+	"github.com/wonksing/oauth-server/pkg/models/moauth"
+	"github.com/wonksing/oauth-server/pkg/usecases/uoauth"
 
+	"github.com/go-oauth2/oauth2/v4"
 	"github.com/go-oauth2/oauth2/v4/models"
 )
 
@@ -23,6 +38,21 @@ var (
 
 	addr           string
 	configFileName string
+)
+
+const (
+	API_OAUTH_LOGIN                  = "/oauth/login"                   // present login page
+	API_OAUTH_LOGIN_AUTHENTICATE     = "/oauth/login/_authenticate"     // validate user id and password
+	API_OAUTH_LOGIN_ACCESS           = "/oauth/login/access"            // present access page
+	API_OAUTH_LOGIN_ACCESS_AUTHORIZE = "/oauth/login/access/_authorize" // authorize access
+	API_OAUTH_AUTHORIZE              = "/oauth/authorize"               // oauth code grant
+
+	API_OAUTH_TOKEN          = "/oauth/token"
+	API_OAUTH_TOKEN_VALIDATE = "/oauth/token/_validate"
+	API_OAUTH_CREDENTIALS    = "/oauth/credentials"
+
+	HTML_OAUTH_LOGIN  = "static/oauth/login.html"
+	HTML_OAUTH_ACCESS = "static/oauth/access.html"
 )
 
 func init() {
@@ -72,49 +102,146 @@ func main() {
 		})
 	}
 
-	// Password credentials
-	oauthServer.Srv.SetPasswordAuthorizationHandler(func(username, password string) (userID string, err error) {
-		if username == "test" && password == "test" {
-			userID = "test"
+	// TODO Scope 모델 정의
+	mapScopes := make(map[string]string)
+	mapScopes["item"] = "/item,/item/new,/item/_add,/item/_delete"
+	mapScopes["item:read"] = "/item,/item/new"
+	mapScopes["item:new:read"] = "/item,/item/new"
+	mapScopes["item:write"] = "/item/_add"
+	mapScopes["emp"] = "/emp,/emp/new,/emp/_add"
+
+	oauthServer.Srv.SetResponseErrorHandler(func(re *oauthErrors.Response) {
+		log.Println(re.Error)
+		if re.Error == merror.ErrorNotAllowedScop {
+			re.StatusCode = http.StatusUnauthorized
+			re.Description = http.StatusText(http.StatusUnauthorized)
+		}
+	})
+	oauthServer.Srv.SetAuthorizeScopeHandler(func(w http.ResponseWriter, r *http.Request) (scope string, err error) {
+		// authorization code grant type일때 범위
+		// scope = "item:new:read"
+
+		if r.Form == nil {
+			r.ParseForm()
+		}
+		scope = r.Form.Get("scope")
+		return
+	})
+	oauthServer.Srv.SetClientScopeHandler(func(tgr *oauth2.TokenGenerateRequest) (allowed bool, err error) {
+		// client credential grant type일때 범위
+
+		_, scope, err := moauth.GetAuthResources(mapScopes, tgr.Scope)
+		if err != nil {
+			allowed = false
+			return
+		}
+		allowed = true
+		tgr.Scope = scope
+
+		return
+	})
+	// Authorization Code Grant
+	oauthServer.Srv.SetUserAuthorizationHandler(func(w http.ResponseWriter, r *http.Request) (userID string, err error) {
+		userID, err = moauth.GetUserIDContext(r.Context())
+		if strings.TrimSpace(userID) == "" {
+			userID = ""
+			err = errors.New("not authorized")
+			return
 		}
 		return
 	})
 
-	// Authorization Code Grant
-	oauthServer.Srv.SetUserAuthorizationHandler(doauth.UserAuthorizeHandler)
+	// Password credentials
+	oauthServer.Srv.SetPasswordAuthorizationHandler(func(username, password string) (userID string, err error) {
+		// if username == password && username == "TTesTT" {
+		// 	userID = username
+		// }
+		err = errors.New("not supported")
+		return
+	})
 
-	h := doauth.ServerHandler{
-		Srv:         oauthServer.Srv,
-		JwtSecret:   jwtSecret,
-		ClientStore: oauthServer.ClientStore,
-	}
+	oauthCookie := cookies.NewOAuthCookie(
+		moauth.KeyReturnURI,
+		time.Duration(24*365),
+		moauth.KeyAccessToken,
+		time.Duration(24*365),
+		moauth.KeyRedirectURI,
+		time.Duration(24*365),
+	)
+	authRepo := repositories.NewOAuthSelfRepo(
+		oauthCookie,
+		API_OAUTH_LOGIN,
+		API_OAUTH_LOGIN_ACCESS,
+	)
+	authView := views.NewOAuthSelfView(
+		HTML_OAUTH_LOGIN,
+		HTML_OAUTH_ACCESS,
+	)
+	oauthUsc := uoauth.NewOAuthUsecase(oauthServer, jwtSecret, 360, authRepo, authView)
+
+	oauthHandler := doauth.NewOAuthHandler(oauthUsc, jwtSecret)
+	userHandler := duser.NewHttpUserHandler(jwtSecret, 360)
+	jwtMiddleware := dmiddleware.NewJWTMiddleware(jwtSecret, moauth.KeyAccessToken, oauthUsc)
+
+	httpServer := commons.NewHttpServer(addr, 30, 30, "", "", nil, nil, nil)
 
 	// 테스트용 API
-	http.HandleFunc(doauth.API_INDEX, dcommon.AuthJWTHandler(h.HelloHandler, jwtSecret, doauth.API_LOGIN))
-	http.HandleFunc(doauth.API_HELLO, dcommon.AuthJWTHandler(h.HelloHandler, jwtSecret, doauth.API_LOGIN))
-	http.HandleFunc(doauth.API_LOGIN, h.LoginHandler)
+	httpServer.Router.HandleFunc(duser.API_INDEX, userHandler.IndexHandler).Methods("GET")
+	httpServer.Router.HandleFunc(duser.API_LOGIN, userHandler.LoginHandler).Methods("GET")
+	httpServer.Router.HandleFunc(duser.API_AUTHENTICATE, userHandler.AuthenticateHandler).Methods("POST")
+	httpServer.Router.HandleFunc(duser.API_HELLO, jwtMiddleware.AuthJWTHandler(userHandler.HelloHandler, duser.API_LOGIN))
 
 	// OAuth2 API
-	// 리소스 서버에 인증
-	http.HandleFunc(doauth.API_OAUTH_LOGIN, h.OAuthLoginHandler)
-	// 리소스 서버의 정보 인가
-	http.HandleFunc(doauth.API_OAUTH_ALLOW, dcommon.AuthJWTHandler(h.OAuthAllowAuthorizationHandler, jwtSecret, doauth.API_OAUTH_LOGIN))
+	// 리소스 서버에 인증하러 보내기
+	httpServer.Router.HandleFunc(API_OAUTH_LOGIN, oauthHandler.LoginHandler)
+	// 리소스 서버에서 인증하기
+	httpServer.Router.HandleFunc(API_OAUTH_LOGIN_AUTHENTICATE, oauthHandler.AuthenticateHandler)
+	// 리소스 서버의 정보 인가하러 보내기
+	httpServer.Router.HandleFunc(API_OAUTH_LOGIN_ACCESS, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.AccessHandler))
+	httpServer.Router.HandleFunc(API_OAUTH_LOGIN_ACCESS_AUTHORIZE, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.AuthorizeAccessHandler))
 	// Authorization Code Grant Type
-	http.HandleFunc(doauth.API_OAUTH_AUTHORIZE, dcommon.AuthJWTHandler(h.OAuthAuthorizeHandler, jwtSecret, doauth.API_OAUTH_LOGIN))
+	httpServer.Router.HandleFunc(API_OAUTH_AUTHORIZE, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.UserAuthorizeHandler))
+	// http.HandleFunc("/oauth/authorize/redirect", oauthHandler.OAuthAuthorizeHandler)
 
 	// token request for all types of grant
 	// Client Credentials Grant comes here directly
 	// Client Server용 API
-	http.HandleFunc(doauth.API_OAUTH_TOKEN, h.OAuthTokenHandler)
+	httpServer.Router.HandleFunc(API_OAUTH_TOKEN, oauthHandler.OAuthTokenHandler)
 
 	// validate access token
-	http.HandleFunc(doauth.API_OAUTH_TOKEN_VALIDATE, h.OAuthValidateTokenHandler)
+	httpServer.Router.HandleFunc(API_OAUTH_TOKEN_VALIDATE, oauthHandler.OAuthValidateTokenHandler)
 
 	// client credential 저장
-	http.HandleFunc(doauth.API_OAUTH_CREDENTIALS, h.CredentialHandler)
+	httpServer.Router.HandleFunc(API_OAUTH_CREDENTIALS, oauthHandler.CredentialHandler)
 
 	log.Printf("Server is running at %v.\n", addr)
 	log.Printf("Point your OAuth client Auth endpoint to %s%s", "http://"+addr, "/oauth/authorize")
 	log.Printf("Point your OAuth client Token endpoint to %s%s", "http://"+addr, "/oauth/token")
-	log.Fatal(http.ListenAndServe(fmt.Sprintf("%v", addr), nil))
+
+	startSyscallChecker(httpServer)
+
+	err = httpServer.Start()
+	if err != nil {
+		log.Println(err)
+	}
+
+	// ticker.Stop()
+}
+
+func startSyscallChecker(httpServer *commons.HttpServer) {
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		sig := <-sigs
+		switch sig {
+		case syscall.SIGINT:
+			log.Println("syscall.SIGINT")
+		case syscall.SIGTERM:
+			log.Println("syscall.SIGTERM")
+		default:
+			log.Println(sig)
+		}
+		httpServer.Stop()
+	}()
 }

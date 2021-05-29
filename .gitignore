@@ -25,6 +25,7 @@ logs/
 
 # debug files
 debug
+__debug_bin
 
 # project specific
 token_store
