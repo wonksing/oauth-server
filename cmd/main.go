@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/wonksing/oauth-server/pkg/adaptors/cookies"
 	"github.com/wonksing/oauth-server/pkg/adaptors/repositories"
+	"github.com/wonksing/oauth-server/pkg/adaptors/views"
 	"github.com/wonksing/oauth-server/pkg/commons"
 	"github.com/wonksing/oauth-server/pkg/deliveries/dmiddleware"
 	"github.com/wonksing/oauth-server/pkg/deliveries/doauth"
@@ -34,6 +35,21 @@ var (
 
 	addr           string
 	configFileName string
+)
+
+const (
+	API_OAUTH_LOGIN                  = "/oauth/login"                   // present login page
+	API_OAUTH_LOGIN_AUTHENTICATE     = "/oauth/login/_authenticate"     // validate user id and password
+	API_OAUTH_LOGIN_ACCESS           = "/oauth/login/access"            // present access page
+	API_OAUTH_LOGIN_ACCESS_AUTHORIZE = "/oauth/login/access/_authorize" // authorize access
+	API_OAUTH_AUTHORIZE              = "/oauth/authorize"               // oauth code grant
+
+	API_OAUTH_TOKEN          = "/oauth/token"
+	API_OAUTH_TOKEN_VALIDATE = "/oauth/token/_validate"
+	API_OAUTH_CREDENTIALS    = "/oauth/credentials"
+
+	HTML_OAUTH_LOGIN  = "static/oauth/login.html"
+	HTML_OAUTH_ACCESS = "static/oauth/access.html"
 )
 
 func init() {
@@ -101,6 +117,11 @@ func main() {
 	oauthServer.Srv.SetAuthorizeScopeHandler(func(w http.ResponseWriter, r *http.Request) (scope string, err error) {
 		// authorization code grant type일때 범위
 		// scope = "item:new:read"
+
+		if r.Form == nil {
+			r.ParseForm()
+		}
+		scope = r.Form.Get("scope")
 		return
 	})
 	oauthServer.Srv.SetClientScopeHandler(func(tgr *oauth2.TokenGenerateRequest) (allowed bool, err error) {
@@ -146,11 +167,14 @@ func main() {
 	)
 	authRepo := repositories.NewOAuthSelfRepo(
 		oauthCookie,
-		doauth.API_OAUTH_LOGIN,
-		doauth.API_OAUTH_LOGIN_ACCESS,
+		API_OAUTH_LOGIN,
+		API_OAUTH_LOGIN_ACCESS,
 	)
-
-	oauthUsc := uoauth.NewOAuthUsecase(oauthServer, jwtSecret, 360, authRepo)
+	authView := views.NewOAuthSelfView(
+		HTML_OAUTH_LOGIN,
+		HTML_OAUTH_ACCESS,
+	)
+	oauthUsc := uoauth.NewOAuthUsecase(oauthServer, jwtSecret, 360, authRepo, authView)
 
 	oauthHandler := doauth.NewOAuthHandler(oauthUsc, jwtSecret)
 	userHandler := duser.NewHttpUserHandler(jwtSecret, 360)
@@ -164,26 +188,26 @@ func main() {
 
 	// OAuth2 API
 	// 리소스 서버에 인증하러 보내기
-	http.HandleFunc(doauth.API_OAUTH_LOGIN, oauthHandler.LoginHandler)
+	http.HandleFunc(API_OAUTH_LOGIN, oauthHandler.LoginHandler)
 	// 리소스 서버에서 인증하기
-	http.HandleFunc(doauth.API_OAUTH_LOGIN_AUTHENTICATE, oauthHandler.AuthenticateHandler)
+	http.HandleFunc(API_OAUTH_LOGIN_AUTHENTICATE, oauthHandler.AuthenticateHandler)
 	// 리소스 서버의 정보 인가하러 보내기
-	http.HandleFunc(doauth.API_OAUTH_LOGIN_ACCESS, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.AccessHandler))
-	http.HandleFunc(doauth.API_OAUTH_LOGIN_ACCESS_AUTHORIZE, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.AuthorizeAccessHandler))
+	http.HandleFunc(API_OAUTH_LOGIN_ACCESS, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.AccessHandler))
+	http.HandleFunc(API_OAUTH_LOGIN_ACCESS_AUTHORIZE, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.AuthorizeAccessHandler))
 	// Authorization Code Grant Type
-	http.HandleFunc(doauth.API_OAUTH_AUTHORIZE, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.UserAuthorizeHandler))
+	http.HandleFunc(API_OAUTH_AUTHORIZE, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.UserAuthorizeHandler))
 	// http.HandleFunc("/oauth/authorize/redirect", oauthHandler.OAuthAuthorizeHandler)
 
 	// token request for all types of grant
 	// Client Credentials Grant comes here directly
 	// Client Server용 API
-	http.HandleFunc(doauth.API_OAUTH_TOKEN, oauthHandler.OAuthTokenHandler)
+	http.HandleFunc(API_OAUTH_TOKEN, oauthHandler.OAuthTokenHandler)
 
 	// validate access token
-	http.HandleFunc(doauth.API_OAUTH_TOKEN_VALIDATE, oauthHandler.OAuthValidateTokenHandler)
+	http.HandleFunc(API_OAUTH_TOKEN_VALIDATE, oauthHandler.OAuthValidateTokenHandler)
 
 	// client credential 저장
-	http.HandleFunc(doauth.API_OAUTH_CREDENTIALS, oauthHandler.CredentialHandler)
+	http.HandleFunc(API_OAUTH_CREDENTIALS, oauthHandler.CredentialHandler)
 
 	log.Printf("Server is running at %v.\n", addr)
 	log.Printf("Point your OAuth client Auth endpoint to %s%s", "http://"+addr, "/oauth/authorize")

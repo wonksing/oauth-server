@@ -26,17 +26,17 @@ type Usecase interface {
 	// RedirectToClient Client에게 돌려보내기(인가 거부시)
 	RedirectToClient(w http.ResponseWriter, r *http.Request) error
 
-	// Login 로그인 페이지로 보내기
-	Login(w http.ResponseWriter, r *http.Request) error
+	// RedirectToLogin 로그인 페이지로 보낸다
+	RedirectToLogin(w http.ResponseWriter, r *http.Request) error
 
 	// Authenticate 사용자 인증
 	// 사용자의 ID와 PW 검사, return uri 유무 확인 후 이상 없으면
 	// access token을 생성하여 쿠키에 저장하고 인가 페이지로 보낸다.
 	Authenticate(w http.ResponseWriter, r *http.Request) error
 
-	// Access 인가 페이지로 보낸다
-	// TODO rename this function
-	Access(w http.ResponseWriter, r *http.Request) error
+	// RedirectToAuthorize 접근인가 페이지로 보낸다
+	RedirectToAuthorize(w http.ResponseWriter, r *http.Request) error
+
 	// AuthorizeAccess 접근을 인가한다. 허용 또는 거부
 	// TODO 여기 아니면 Grant에서 Scope을 처리해야한다.
 	AuthorizeAccess(w http.ResponseWriter, r *http.Request) (context.Context, error)
@@ -51,6 +51,12 @@ type Usecase interface {
 	// AddClientCredential 새로운 클라이언트를 추가한다.
 	// Store에 자동으로 저장되지는 않는다.
 	AddClientCredential(clientID, clientSecret, clientDomain string) (map[string]interface{}, error)
+
+	// views
+	// Login 페이지
+	Login(w http.ResponseWriter, r *http.Request) error
+	// Authorize 페이지, 클라이언트에게 접근을 인가하는 페이지
+	Authorize(w http.ResponseWriter, r *http.Request) error
 }
 
 type oauthUsecase struct {
@@ -58,6 +64,7 @@ type oauthUsecase struct {
 	jwtSecret        string
 	jwtExpiresSecond int64
 	authRepo         port.AuthRepo
+	authView         port.AuthView
 }
 
 func NewOAuthUsecase(
@@ -65,6 +72,7 @@ func NewOAuthUsecase(
 	jwtSecret string,
 	jwtExpiresSecond int64,
 	authRepo port.AuthRepo,
+	authView port.AuthView,
 ) Usecase {
 
 	usc := &oauthUsecase{
@@ -72,6 +80,7 @@ func NewOAuthUsecase(
 		jwtSecret:        jwtSecret,
 		jwtExpiresSecond: jwtExpiresSecond,
 		authRepo:         authRepo,
+		authView:         authView,
 	}
 	return usc
 }
@@ -87,22 +96,23 @@ func (u *oauthUsecase) RedirectToClient(w http.ResponseWriter, r *http.Request) 
 	return u.authRepo.RedirectToClient(w, r)
 }
 
-func (u *oauthUsecase) Login(w http.ResponseWriter, r *http.Request) error {
-	return u.authRepo.Login(w, r)
+func (u *oauthUsecase) RedirectToLogin(w http.ResponseWriter, r *http.Request) error {
+	return u.authRepo.RedirectToLogin(w, r)
 }
 
 func (u *oauthUsecase) Authenticate(w http.ResponseWriter, r *http.Request) error {
 	return u.authRepo.Authenticate(w, r, u.jwtSecret, u.jwtExpiresSecond)
 }
 
-func (u *oauthUsecase) Access(w http.ResponseWriter, r *http.Request) error {
-	return u.authRepo.Access(w, r)
+func (u *oauthUsecase) RedirectToAuthorize(w http.ResponseWriter, r *http.Request) error {
+	return u.authRepo.RedirectToAuthorize(w, r)
+
 }
 
 func (u *oauthUsecase) AuthorizeAccess(w http.ResponseWriter, r *http.Request) (context.Context, error) {
 	status := u.authRepo.AuthorizeAccess(w, r)
 	if status == "" {
-		return context.Background(), u.Access(w, r)
+		return context.Background(), u.RedirectToAuthorize(w, r)
 		// return r, moauth.ErrorUserNeedToAllow
 	}
 	if status != "yes" {
@@ -119,7 +129,7 @@ func (u *oauthUsecase) GrantAuthorizeCode(w http.ResponseWriter, r *http.Request
 	userID, err := u.authRepo.CheckUserID(r)
 	if err != nil {
 		if err == merror.ErrorUserIDNotFound {
-			return u.Login(w, r)
+			return u.RedirectToLogin(w, r)
 		}
 		return err
 	}
@@ -137,7 +147,7 @@ func (u *oauthUsecase) GrantAuthorizeCode(w http.ResponseWriter, r *http.Request
 			if err != nil {
 				return err
 			}
-			return u.Access(w, r)
+			return u.RedirectToAuthorize(w, r)
 
 		} else if err == merror.ErrorUserDidNotAllow {
 			return u.authRepo.RedirectToClient(w, r)
@@ -201,4 +211,11 @@ func (u *oauthUsecase) AddClientCredential(clientID, clientSecret, clientDomain 
 	}
 	data := map[string]interface{}{"client_id": clientID, "domain": clientDomain}
 	return data, nil
+}
+
+func (u *oauthUsecase) Login(w http.ResponseWriter, r *http.Request) error {
+	return u.authView.Login(w, r)
+}
+func (u *oauthUsecase) Authorize(w http.ResponseWriter, r *http.Request) error {
+	return u.authView.Authorize(w, r)
 }

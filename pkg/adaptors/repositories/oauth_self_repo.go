@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/wonksing/oauth-server/pkg/commons"
 	"github.com/wonksing/oauth-server/pkg/models/mjwt"
 	"github.com/wonksing/oauth-server/pkg/models/moauth"
 	"github.com/wonksing/oauth-server/pkg/port"
@@ -23,6 +24,9 @@ func NewOAuthSelfRepo(oauthCookie port.OAuthCookie, loginPageAPI string, authori
 	}
 }
 
+func (repo *OAuthSelfRepo) ClearAccessToken(w http.ResponseWriter) {
+	repo.oauthCookie.ClearAccessToken(w)
+}
 func (repo *OAuthSelfRepo) SetReturnURI(w http.ResponseWriter, r *http.Request) error {
 	if r.Form == nil {
 		r.ParseForm()
@@ -84,18 +88,17 @@ func (repo *OAuthSelfRepo) RedirectToClient(w http.ResponseWriter, r *http.Reque
 	return nil
 }
 
-func (repo *OAuthSelfRepo) Login(w http.ResponseWriter, r *http.Request) error {
+func (repo *OAuthSelfRepo) RedirectToLogin(w http.ResponseWriter, r *http.Request) error {
 	if r.Form == nil {
 		r.ParseForm()
 	}
 
 	// access token 지우기
-	repo.oauthCookie.ClearAccessToken(w)
+	repo.ClearAccessToken(w)
 	repo.SetReturnURI(w, r)
 	repo.SetRedirectURI(w, r)
 
-	w.Header().Set("Location", repo.loginPageAPI)
-	w.WriteHeader(http.StatusFound)
+	commons.Redirect(w, repo.loginPageAPI)
 	return nil
 }
 
@@ -128,13 +131,12 @@ func (repo *OAuthSelfRepo) Authenticate(w http.ResponseWriter, r *http.Request, 
 	return nil
 }
 
-func (repo *OAuthSelfRepo) Access(w http.ResponseWriter, r *http.Request) error {
+func (repo *OAuthSelfRepo) RedirectToAuthorize(w http.ResponseWriter, r *http.Request) error {
 	if r.Form == nil {
 		r.ParseForm()
 	}
 
-	w.Header().Set("Location", repo.authorizePageAPI)
-	w.WriteHeader(http.StatusFound)
+	commons.Redirect(w, repo.authorizePageAPI)
 	return nil
 }
 

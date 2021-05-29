@@ -9,21 +9,6 @@ import (
 	"github.com/wonksing/oauth-server/pkg/usecases/uoauth"
 )
 
-const (
-	API_OAUTH_LOGIN                  = "/oauth/login"                   // present login page
-	API_OAUTH_LOGIN_AUTHENTICATE     = "/oauth/login/_authenticate"     // validate user id and password
-	API_OAUTH_LOGIN_ACCESS           = "/oauth/login/access"            // present access page
-	API_OAUTH_LOGIN_ACCESS_AUTHORIZE = "/oauth/login/access/_authorize" // authorize access
-	API_OAUTH_AUTHORIZE              = "/oauth/authorize"               // oauth code grant
-
-	API_OAUTH_TOKEN          = "/oauth/token"
-	API_OAUTH_TOKEN_VALIDATE = "/oauth/token/_validate"
-	API_OAUTH_CREDENTIALS    = "/oauth/credentials"
-
-	HTML_OAUTH_LOGIN  = "static/oauth/login.html"
-	HTML_OAUTH_ACCESS = "static/oauth/access.html"
-)
-
 type OAuthHandler struct {
 	JwtSecret string
 
@@ -50,12 +35,11 @@ func (h *OAuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !commons.FileExists(HTML_OAUTH_LOGIN) {
+	err := h.oauthUsc.Login(w, r)
+	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	commons.OutputHTML(w, r, HTML_OAUTH_LOGIN)
-
 }
 
 // OAuthLoginHandler 로그인 처리.
@@ -74,7 +58,7 @@ func (h *OAuthHandler) AuthenticateHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	err = h.oauthUsc.Access(w, r)
+	err = h.oauthUsc.RedirectToAuthorize(w, r)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -91,11 +75,11 @@ func (h *OAuthHandler) AccessHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !commons.FileExists(HTML_OAUTH_ACCESS) {
+	err := h.oauthUsc.Authorize(w, r)
+	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	commons.OutputHTML(w, r, HTML_OAUTH_ACCESS)
 }
 
 // AuthorizeAccessHandler 엑세스를 허용/거절한다

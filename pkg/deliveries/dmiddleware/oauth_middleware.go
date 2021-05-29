@@ -78,7 +78,7 @@ func (m *JWTMiddleware) OAuthAuthJWTHandler(next http.HandlerFunc) http.HandlerF
 
 		claim, err := authJWT(r, m.jwtSecret, m.accessTokenKey)
 		if err != nil {
-			err = m.oauthUsc.Login(w, r)
+			err = m.oauthUsc.RedirectToLogin(w, r)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
