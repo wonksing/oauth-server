@@ -5,7 +5,10 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	oauthErrors "github.com/go-oauth2/oauth2/v4/errors"
@@ -180,37 +183,65 @@ func main() {
 	userHandler := duser.NewHttpUserHandler(jwtSecret, 360)
 	jwtMiddleware := dmiddleware.NewJWTMiddleware(jwtSecret, moauth.KeyAccessToken, oauthUsc)
 
+	httpServer := commons.NewHttpServer(addr, 30, 30, "", "", nil, nil, nil)
+
 	// 테스트용 API
-	http.HandleFunc(duser.API_INDEX, userHandler.IndexHandler)
-	http.HandleFunc(duser.API_LOGIN, userHandler.LoginHandler)
-	http.HandleFunc(duser.API_AUTHENTICATE, userHandler.AuthenticateHandler)
-	http.HandleFunc(duser.API_HELLO, jwtMiddleware.AuthJWTHandler(userHandler.HelloHandler, duser.API_LOGIN))
+	httpServer.Router.HandleFunc(duser.API_INDEX, userHandler.IndexHandler).Methods("GET")
+	httpServer.Router.HandleFunc(duser.API_LOGIN, userHandler.LoginHandler).Methods("GET")
+	httpServer.Router.HandleFunc(duser.API_AUTHENTICATE, userHandler.AuthenticateHandler).Methods("POST")
+	httpServer.Router.HandleFunc(duser.API_HELLO, jwtMiddleware.AuthJWTHandler(userHandler.HelloHandler, duser.API_LOGIN))
 
 	// OAuth2 API
 	// 리소스 서버에 인증하러 보내기
-	http.HandleFunc(API_OAUTH_LOGIN, oauthHandler.LoginHandler)
+	httpServer.Router.HandleFunc(API_OAUTH_LOGIN, oauthHandler.LoginHandler)
 	// 리소스 서버에서 인증하기
-	http.HandleFunc(API_OAUTH_LOGIN_AUTHENTICATE, oauthHandler.AuthenticateHandler)
+	httpServer.Router.HandleFunc(API_OAUTH_LOGIN_AUTHENTICATE, oauthHandler.AuthenticateHandler)
 	// 리소스 서버의 정보 인가하러 보내기
-	http.HandleFunc(API_OAUTH_LOGIN_ACCESS, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.AccessHandler))
-	http.HandleFunc(API_OAUTH_LOGIN_ACCESS_AUTHORIZE, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.AuthorizeAccessHandler))
+	httpServer.Router.HandleFunc(API_OAUTH_LOGIN_ACCESS, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.AccessHandler))
+	httpServer.Router.HandleFunc(API_OAUTH_LOGIN_ACCESS_AUTHORIZE, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.AuthorizeAccessHandler))
 	// Authorization Code Grant Type
-	http.HandleFunc(API_OAUTH_AUTHORIZE, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.UserAuthorizeHandler))
+	httpServer.Router.HandleFunc(API_OAUTH_AUTHORIZE, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.UserAuthorizeHandler))
 	// http.HandleFunc("/oauth/authorize/redirect", oauthHandler.OAuthAuthorizeHandler)
 
 	// token request for all types of grant
 	// Client Credentials Grant comes here directly
 	// Client Server용 API
-	http.HandleFunc(API_OAUTH_TOKEN, oauthHandler.OAuthTokenHandler)
+	httpServer.Router.HandleFunc(API_OAUTH_TOKEN, oauthHandler.OAuthTokenHandler)
 
 	// validate access token
-	http.HandleFunc(API_OAUTH_TOKEN_VALIDATE, oauthHandler.OAuthValidateTokenHandler)
+	httpServer.Router.HandleFunc(API_OAUTH_TOKEN_VALIDATE, oauthHandler.OAuthValidateTokenHandler)
 
 	// client credential 저장
-	http.HandleFunc(API_OAUTH_CREDENTIALS, oauthHandler.CredentialHandler)
+	httpServer.Router.HandleFunc(API_OAUTH_CREDENTIALS, oauthHandler.CredentialHandler)
 
 	log.Printf("Server is running at %v.\n", addr)
 	log.Printf("Point your OAuth client Auth endpoint to %s%s", "http://"+addr, "/oauth/authorize")
 	log.Printf("Point your OAuth client Token endpoint to %s%s", "http://"+addr, "/oauth/token")
-	log.Fatal(http.ListenAndServe(addr, nil))
+
+	startSyscallChecker(httpServer)
+
+	err = httpServer.Start()
+	if err != nil {
+		log.Println(err)
+	}
+
+	// ticker.Stop()
+}
+
+func startSyscallChecker(httpServer *commons.HttpServer) {
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		sig := <-sigs
+		switch sig {
+		case syscall.SIGINT:
+			log.Println("syscall.SIGINT")
+		case syscall.SIGTERM:
+			log.Println("syscall.SIGTERM")
+		default:
+			log.Println(sig)
+		}
+		httpServer.Stop()
+	}()
 }
