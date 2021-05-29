@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/go-oauth2/oauth2/v4/server"
-	"github.com/go-oauth2/oauth2/v4/store"
 	"github.com/wonksing/oauth-server/pkg/commons"
 	"github.com/wonksing/oauth-server/pkg/usecases/uoauth"
 )
@@ -27,24 +25,18 @@ const (
 )
 
 type OAuthHandler struct {
-	Srv         *server.Server
-	JwtSecret   string
-	ClientStore *store.ClientStore
+	JwtSecret string
 
 	oauthUsc uoauth.Usecase
 }
 
 func NewOAuthHandler(
 	oauthUsc uoauth.Usecase,
-	Srv *server.Server,
 	JwtSecret string,
-	ClientStore *store.ClientStore,
 ) *OAuthHandler {
 	return &OAuthHandler{
-		oauthUsc:    oauthUsc,
-		Srv:         Srv,
-		JwtSecret:   JwtSecret,
-		ClientStore: ClientStore,
+		oauthUsc:  oauthUsc,
+		JwtSecret: JwtSecret,
 	}
 
 }
@@ -116,17 +108,6 @@ func (h *OAuthHandler) AuthorizeAccessHandler(w http.ResponseWriter, r *http.Req
 	}
 	ctx, err := h.oauthUsc.AuthorizeAccess(w, r)
 	if err != nil {
-		// if err == moauth.ErrorUserDidNotAllow {
-		// 	err = h.oauthUsc.RedirectToClient(w, r)
-		// 	if err == nil {
-		// 		return
-		// 	}
-		// } else if err == moauth.ErrorUserNeedToAllow {
-		// 	err = h.oauthUsc.Access(w, r)
-		// 	if err == nil {
-		// 		return
-		// 	}
-		// }
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -141,36 +122,6 @@ func (h *OAuthHandler) UserAuthorizeHandler(w http.ResponseWriter, r *http.Reque
 	commons.DumpRequest(os.Stdout, "UserAuthorizeHandler", r)
 
 	err := h.oauthUsc.GrantAuthorizeCode(w, r)
-	// if err != nil {
-	// 	if err == moauth.ErrorUserDidNotAllow {
-	// 		err = h.oauthUsc.RedirectToClient(w, r)
-	// 		if err != nil {
-	// 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-	// 			return
-	// 		}
-	// 		return
-	// 	} else if err == moauth.ErrorUserNeedToAllow {
-	// 		h.oauthUsc.Access(w, r)
-	// 		if err != nil {
-	// 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-	// 			return
-	// 		}
-	// 		return
-	// 	} else if err == moauth.ErrorUserIDNotFound {
-	// 		err = h.oauthUsc.Login(w, r)
-	// 		if err != nil {
-	// 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-	// 			return
-	// 		}
-	// 		return
-	// 	}
-	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
-	// 	return
-	// }
-
-	// // h.oauthUsc.ClearOAuthCookie(w)
-
-	// err = h.Srv.HandleAuthorizeRequest(w, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	}
@@ -180,25 +131,6 @@ func (h *OAuthHandler) UserAuthorizeHandler(w http.ResponseWriter, r *http.Reque
 func (h *OAuthHandler) OAuthAuthorizeRedirectHandler(w http.ResponseWriter, r *http.Request) {
 	// commons.DumpRequest(os.Stdout, "OAuthAuthorizeHandler", r)
 
-	// err := h.oauthUsc.UserAuthorize(w, r)
-	// if err != nil {
-	// 	if err == moauth.ErrorUserDidNotAllow {
-	// 		h.oauthUsc.RedirectToClient(w, r)
-	// 		return
-	// 	} else if err == moauth.ErrorUserNeedToAllow {
-	// 		h.oauthUsc.RedirectToAllowPage(w, r)
-	// 		return
-	// 	}
-	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
-	// 	return
-	// }
-
-	// h.oauthUsc.ClearOAuthCookie(w)
-
-	// err = h.Srv.HandleAuthorizeRequest(w, r)
-	// if err != nil {
-	// 	http.Error(w, err.Error(), http.StatusBadRequest)
-	// }
 }
 
 func (h *OAuthHandler) OAuthTokenHandler(w http.ResponseWriter, r *http.Request) {
@@ -212,22 +144,6 @@ func (h *OAuthHandler) OAuthTokenHandler(w http.ResponseWriter, r *http.Request)
 
 func (h *OAuthHandler) OAuthValidateTokenHandler(w http.ResponseWriter, r *http.Request) {
 	commons.DumpRequest(os.Stdout, "OAuthValidateTokenHandler", r) // Ignore the error
-
-	// token, err := h.Srv.ValidationBearerToken(r)
-	// if err != nil {
-	// 	http.Error(w, err.Error(), http.StatusBadRequest)
-	// 	return
-	// }
-	// commons.VerifyJWT(h.JwtSecret, token.GetAccess())
-
-	// t := token.GetAccessCreateAt().Add(token.GetAccessExpiresIn())
-	// expiresIn := int64(time.Until(t).Seconds())
-	// data := map[string]interface{}{
-	// 	// "expires_in": int64(token.GetAccessCreateAt().Add(token.GetAccessExpiresIn()).Sub(time.Now()).Seconds()),
-	// 	"expires_in": expiresIn,
-	// 	"client_id":  token.GetClientID(),
-	// 	"user_id":    token.GetUserID(),
-	// }
 
 	data, err := h.oauthUsc.VerifyToken(w, r)
 	if err != nil {
@@ -258,17 +174,4 @@ func (h *OAuthHandler) CredentialHandler(w http.ResponseWriter, r *http.Request)
 	e.SetIndent("", "  ")
 	e.Encode(data)
 
-	// err := h.ClientStore.Set(clientID, &models.Client{
-	// 	ID:     clientID,
-	// 	Secret: clientSecret,
-	// 	Domain: clientDomain,
-	// })
-	// if err != nil {
-	// 	fmt.Println(err.Error())
-	// 	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-	// 	return
-	// }
-
-	// w.Header().Set("Content-Type", "application/json")
-	// json.NewEncoder(w).Encode(map[string]string{"CLIENT_ID": clientID, "CLIENT_SECRET": clientSecret})
 }

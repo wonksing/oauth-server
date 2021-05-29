@@ -1,10 +1,14 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"log"
 	"net/http"
+	"strings"
 	"time"
+
+	oauthErrors "github.com/go-oauth2/oauth2/v4/errors"
 
 	"github.com/spf13/viper"
 	"github.com/wonksing/oauth-server/pkg/adaptors/cookies"
@@ -13,6 +17,7 @@ import (
 	"github.com/wonksing/oauth-server/pkg/deliveries/dmiddleware"
 	"github.com/wonksing/oauth-server/pkg/deliveries/doauth"
 	"github.com/wonksing/oauth-server/pkg/deliveries/duser"
+	"github.com/wonksing/oauth-server/pkg/models/merror"
 	"github.com/wonksing/oauth-server/pkg/models/moauth"
 	"github.com/wonksing/oauth-server/pkg/usecases/uoauth"
 
@@ -77,32 +82,59 @@ func main() {
 			Domain: domain,
 		})
 	}
-	// oauthServer.Srv.SetResponseErrorHandler(func(re *oauthErrors.Response) {
 
-	// })
+	// TODO Scope 모델 정의
+	mapScopes := make(map[string]string)
+	mapScopes["item"] = "/item,/item/new,/item/_add,/item/_delete"
+	mapScopes["item:read"] = "/item,/item/new"
+	mapScopes["item:new:read"] = "/item,/item/new"
+	mapScopes["item:write"] = "/item/_add"
+	mapScopes["emp"] = "/emp,/emp/new,/emp/_add"
+
+	oauthServer.Srv.SetResponseErrorHandler(func(re *oauthErrors.Response) {
+		log.Println(re.Error)
+		if re.Error == merror.ErrorNotAllowedScop {
+			re.StatusCode = http.StatusUnauthorized
+			re.Description = http.StatusText(http.StatusUnauthorized)
+		}
+	})
 	oauthServer.Srv.SetAuthorizeScopeHandler(func(w http.ResponseWriter, r *http.Request) (scope string, err error) {
 		// authorization code grant type일때 범위
-		scope = "authorization code"
-		err = nil
+		// scope = "item:new:read"
 		return
 	})
 	oauthServer.Srv.SetClientScopeHandler(func(tgr *oauth2.TokenGenerateRequest) (allowed bool, err error) {
 		// client credential grant type일때 범위
 
-		// if tgr.Scope == "all" {
-		// 	allowed = false
-		// 	return
-		// }
-		tgr.Scope = "client credential"
+		_, scope, err := moauth.GetAuthResources(mapScopes, tgr.Scope)
+		if err != nil {
+			allowed = false
+			return
+		}
 		allowed = true
-		err = nil
+		tgr.Scope = scope
+
 		return
 	})
-	// Password credentials
-	oauthServer.Srv.SetPasswordAuthorizationHandler(moauth.PasswordAuthorizeHandler)
-
 	// Authorization Code Grant
-	oauthServer.Srv.SetUserAuthorizationHandler(moauth.UserAuthorizeHandler)
+	oauthServer.Srv.SetUserAuthorizationHandler(func(w http.ResponseWriter, r *http.Request) (userID string, err error) {
+		userID, err = moauth.GetUserIDContext(r.Context())
+		if strings.TrimSpace(userID) == "" {
+			userID = ""
+			err = errors.New("not authorized")
+			return
+		}
+		return
+	})
+
+	// Password credentials
+	oauthServer.Srv.SetPasswordAuthorizationHandler(func(username, password string) (userID string, err error) {
+		// if username == password && username == "TTesTT" {
+		// 	userID = username
+		// }
+		err = errors.New("not supported")
+		return
+	})
 
 	oauthCookie := cookies.NewOAuthCookie(
 		moauth.KeyReturnURI,
@@ -120,7 +152,7 @@ func main() {
 
 	oauthUsc := uoauth.NewOAuthUsecase(oauthServer, jwtSecret, 360, authRepo)
 
-	oauthHandler := doauth.NewOAuthHandler(oauthUsc, oauthServer.Srv, jwtSecret, oauthServer.ClientStore)
+	oauthHandler := doauth.NewOAuthHandler(oauthUsc, jwtSecret)
 	userHandler := duser.NewHttpUserHandler(jwtSecret, 360)
 	jwtMiddleware := dmiddleware.NewJWTMiddleware(jwtSecret, moauth.KeyAccessToken, oauthUsc)
 
@@ -136,10 +168,10 @@ func main() {
 	// 리소스 서버에서 인증하기
 	http.HandleFunc(doauth.API_OAUTH_LOGIN_AUTHENTICATE, oauthHandler.AuthenticateHandler)
 	// 리소스 서버의 정보 인가하러 보내기
-	http.HandleFunc(doauth.API_OAUTH_LOGIN_ACCESS, jwtMiddleware.AuthJWTHandlerReturnURI(oauthHandler.AccessHandler))
-	http.HandleFunc(doauth.API_OAUTH_LOGIN_ACCESS_AUTHORIZE, jwtMiddleware.AuthJWTHandlerReturnURI(oauthHandler.AuthorizeAccessHandler))
+	http.HandleFunc(doauth.API_OAUTH_LOGIN_ACCESS, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.AccessHandler))
+	http.HandleFunc(doauth.API_OAUTH_LOGIN_ACCESS_AUTHORIZE, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.AuthorizeAccessHandler))
 	// Authorization Code Grant Type
-	http.HandleFunc(doauth.API_OAUTH_AUTHORIZE, jwtMiddleware.AuthJWTHandlerReturnURI(oauthHandler.UserAuthorizeHandler))
+	http.HandleFunc(doauth.API_OAUTH_AUTHORIZE, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.UserAuthorizeHandler))
 	// http.HandleFunc("/oauth/authorize/redirect", oauthHandler.OAuthAuthorizeHandler)
 
 	// token request for all types of grant

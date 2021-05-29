@@ -11,7 +11,7 @@ token_config:
     generate_refresh: false
 
 token_store:
-  # file, memory
+  # file, memory, path 없으면 메모리스토어
   file:
     path: './token_store'
 

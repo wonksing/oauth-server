@@ -151,50 +151,6 @@ func (repo *OAuthSelfRepo) AuthorizeAccess(w http.ResponseWriter, r *http.Reques
 	// return nil
 }
 
-// func (repo *OAuthSelfRepo) UserAuthorize(w http.ResponseWriter, r *http.Request) error {
-// 	if r.Form == nil {
-// 		r.ParseForm()
-// 	}
-
-// 	// // Resource Owner가 허용했는지 확인한다
-// 	// // TODO Scope도 여기서 처리해야 한다(나중에...)
-// 	// _, err := moauth.GetAllowStatus(r.Context())
-// 	// if err != nil {
-// 	// 	fmt.Println(err)
-// 	// 	if err == moauth.ErrorUserNeedToAllow {
-// 	// 		// 허용하지도 거절하지도 않은 경우
-// 	// 		clientID := r.Form.Get("client_id")
-// 	// 		redirectURI := r.Form.Get("redirect_uri")
-// 	// 		if clientID != "" && redirectURI != "" {
-// 	// 			repo.oauthCookie.WriteRedirectURI(w, redirectURI)
-// 	// 			repo.oauthCookie.WriteReturnURI(w, r.Form.Encode())
-// 	// 			return moauth.ErrorUserNeedToAllow
-// 	// 		} else {
-// 	// 			repo.oauthCookie.ClearReturnURI(w)
-// 	// 			repo.oauthCookie.ClearRedirectURI(w)
-// 	// 			return errors.New("not authorized")
-// 	// 		}
-// 	// 	}
-// 	// 	return err
-// 	// }
-
-// 	returnURI, _ := repo.oauthCookie.ReadReturnURI(r)
-// 	repo.oauthCookie.ClearReturnURI(w)
-// 	repo.oauthCookie.ClearRedirectURI(w)
-// 	// repo.oauthCookie.ClearAccessToken(w)
-
-// 	if returnURI != "" {
-// 		// oauth에 전달할 파라메터
-// 		v, err := url.ParseQuery(returnURI)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		r.Form = v
-// 	}
-
-// 	return nil
-// }
-
 func (repo *OAuthSelfRepo) CheckUserID(r *http.Request) (string, error) {
 	if r.Form == nil {
 		r.ParseForm()
@@ -204,25 +160,6 @@ func (repo *OAuthSelfRepo) CheckUserID(r *http.Request) (string, error) {
 
 func (repo *OAuthSelfRepo) CheckAuthorizeStatus(r *http.Request) (string, error) {
 	// Resource Owner가 허용했는지 확인한다
-	// TODO Scope도 여기서 처리해야 한다(나중에...)
-	return moauth.GetAllowStatus(r.Context())
+	return moauth.GetAllowStatusContext(r.Context())
 
-	// if err != nil {
-	// 	if err == moauth.ErrorUserNeedToAllow {
-	// 		// 허용하지도 거절하지도 않은 경우
-	// 		clientID := r.Form.Get("client_id")
-	// 		redirectURI := r.Form.Get("redirect_uri")
-	// 		if clientID != "" && redirectURI != "" {
-	// 			repo.oauthCookie.WriteRedirectURI(w, redirectURI)
-	// 			repo.oauthCookie.WriteReturnURI(w, r.Form.Encode())
-	// 			return "", moauth.ErrorUserNeedToAllow
-	// 		} else {
-	// 			repo.oauthCookie.ClearReturnURI(w)
-	// 			repo.oauthCookie.ClearRedirectURI(w)
-	// 			return "", errors.New("not authorized")
-	// 		}
-	// 	}
-	// 	return "", err
-	// }
-	// return status, nil
 }

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/wonksing/oauth-server/pkg/commons"
 	"github.com/wonksing/oauth-server/pkg/models/mjwt"
 	"github.com/wonksing/oauth-server/pkg/models/moauth"
 	"github.com/wonksing/oauth-server/pkg/usecases/uoauth"
@@ -63,8 +64,7 @@ func (m *JWTMiddleware) AuthJWTHandler(next http.HandlerFunc, redirectUriOnFail 
 
 			// m.oauthUsc.ClearOAuthUserCookie(w)
 
-			w.Header().Set("Location", redirectUriOnFail)
-			w.WriteHeader(http.StatusFound)
+			commons.Redirect(w, redirectUriOnFail)
 			return
 		}
 		ctx := mjwt.WithTokenClaimContext(r.Context(), claim)
@@ -72,8 +72,8 @@ func (m *JWTMiddleware) AuthJWTHandler(next http.HandlerFunc, redirectUriOnFail 
 	}
 }
 
-// AuthJWTHandler to verify the request
-func (m *JWTMiddleware) AuthJWTHandlerReturnURI(next http.HandlerFunc) http.HandlerFunc {
+// OAuthAuthJWTHandler to verify the request
+func (m *JWTMiddleware) OAuthAuthJWTHandler(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		claim, err := authJWT(r, m.jwtSecret, m.accessTokenKey)
@@ -86,7 +86,7 @@ func (m *JWTMiddleware) AuthJWTHandlerReturnURI(next http.HandlerFunc) http.Hand
 			return
 		}
 		ctx := mjwt.WithTokenClaimContext(r.Context(), claim)
-		ctx = moauth.WithUserIDContext(r.Context(), claim.UsrID)
+		ctx = moauth.WithUserIDContext(ctx, claim.UsrID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }

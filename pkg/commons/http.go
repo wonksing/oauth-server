@@ -42,3 +42,8 @@ func DumpRequest(writer io.Writer, header string, r *http.Request) error {
 	writer.Write(data)
 	return nil
 }
+
+func Redirect(w http.ResponseWriter, redirectURI string) {
+	w.Header().Set("Location", redirectURI)
+	w.WriteHeader(http.StatusFound)
+}

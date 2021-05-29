@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-oauth2/oauth2/models"
 	"github.com/wonksing/oauth-server/pkg/commons"
+	"github.com/wonksing/oauth-server/pkg/models/merror"
 	"github.com/wonksing/oauth-server/pkg/models/moauth"
 	"github.com/wonksing/oauth-server/pkg/port"
 )
@@ -34,7 +35,7 @@ type Usecase interface {
 	Authenticate(w http.ResponseWriter, r *http.Request) error
 
 	// Access 인가 페이지로 보낸다
-	// TODO rename this function name
+	// TODO rename this function
 	Access(w http.ResponseWriter, r *http.Request) error
 	// AuthorizeAccess 접근을 인가한다. 허용 또는 거부
 	// TODO 여기 아니면 Grant에서 Scope을 처리해야한다.
@@ -65,12 +66,14 @@ func NewOAuthUsecase(
 	jwtExpiresSecond int64,
 	authRepo port.AuthRepo,
 ) Usecase {
-	return &oauthUsecase{
+
+	usc := &oauthUsecase{
 		oauthServer:      oauthServer,
 		jwtSecret:        jwtSecret,
 		jwtExpiresSecond: jwtExpiresSecond,
 		authRepo:         authRepo,
 	}
+	return usc
 }
 
 func (u *oauthUsecase) SetReturnURI(w http.ResponseWriter, r *http.Request) error {
@@ -115,7 +118,7 @@ func (u *oauthUsecase) AuthorizeAccess(w http.ResponseWriter, r *http.Request) (
 func (u *oauthUsecase) GrantAuthorizeCode(w http.ResponseWriter, r *http.Request) error {
 	userID, err := u.authRepo.CheckUserID(r)
 	if err != nil {
-		if err == moauth.ErrorUserIDNotFound {
+		if err == merror.ErrorUserIDNotFound {
 			return u.Login(w, r)
 		}
 		return err
@@ -124,7 +127,7 @@ func (u *oauthUsecase) GrantAuthorizeCode(w http.ResponseWriter, r *http.Request
 
 	status, err := u.authRepo.CheckAuthorizeStatus(r)
 	if err != nil {
-		if err == moauth.ErrorUserNeedToAllow {
+		if err == merror.ErrorUserNeedToAllow {
 			// 허용하지도 거절하지도 않은 경우
 			err = u.authRepo.SetReturnURI(w, r)
 			if err != nil {
@@ -136,7 +139,7 @@ func (u *oauthUsecase) GrantAuthorizeCode(w http.ResponseWriter, r *http.Request
 			}
 			return u.Access(w, r)
 
-		} else if err == moauth.ErrorUserDidNotAllow {
+		} else if err == merror.ErrorUserDidNotAllow {
 			return u.authRepo.RedirectToClient(w, r)
 		}
 		return err
@@ -183,9 +186,6 @@ func (u *oauthUsecase) VerifyToken(w http.ResponseWriter, r *http.Request) (map[
 		"user_id":    token.GetUserID(),
 		"scope":      token.GetScope(),
 	}
-	// e := json.NewEncoder(w)
-	// e.SetIndent("", "  ")
-	// e.Encode(data)
 	return data, nil
 }
 
@@ -199,8 +199,6 @@ func (u *oauthUsecase) AddClientCredential(clientID, clientSecret, clientDomain 
 	if err != nil {
 		return nil, err
 	}
-	data := map[string]interface{}{"CLIENT_ID": clientID, "CLIENT_SECRET": clientSecret}
+	data := map[string]interface{}{"client_id": clientID, "domain": clientDomain}
 	return data, nil
-	// w.Header().Set("Content-Type", "application/json")
-	// json.NewEncoder(w).Encode(map[string]string{"CLIENT_ID": clientID, "CLIENT_SECRET": clientSecret})
 }
