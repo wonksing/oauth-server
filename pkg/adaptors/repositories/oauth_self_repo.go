@@ -1,7 +1,10 @@
 package repositories
 
 import (
+	"bytes"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/wonksing/oauth-server/pkg/commons"
 	"github.com/wonksing/oauth-server/pkg/port"
@@ -19,12 +22,26 @@ func NewOAuthSelfRepo(loginPageAPI string, authorizePageAPI string) port.AuthRep
 	}
 }
 
-func (repo *OAuthSelfRepo) RedirectToLogin(w http.ResponseWriter, r *http.Request) error {
+func (repo *OAuthSelfRepo) RedirectToLogin(w http.ResponseWriter, r *http.Request, redirectURI string) error {
 	if r.Form == nil {
 		r.ParseForm()
 	}
+	uri := repo.loginPageAPI
+	if redirectURI != "" {
+		var buf bytes.Buffer
+		buf.WriteString(uri)
+		v := url.Values{}
+		v.Set("redirect_uri", redirectURI)
 
-	commons.Redirect(w, repo.loginPageAPI)
+		if strings.Contains(uri, "?") {
+			buf.WriteByte('&')
+		} else {
+			buf.WriteByte('?')
+		}
+		buf.WriteString(v.Encode())
+		uri = buf.String()
+	}
+	commons.Redirect(w, uri)
 	return nil
 }
 

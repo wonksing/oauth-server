@@ -32,6 +32,7 @@ type Usecase interface {
 
 	// RedirectToLogin 로그인 페이지로 보낸다
 	RedirectToLogin(w http.ResponseWriter, r *http.Request) error
+	RedirectToLoginRemote(w http.ResponseWriter, r *http.Request) error
 
 	// Authenticate 사용자 인증
 	// 사용자의 ID와 PW 검사, return uri 유무 확인 후 이상 없으면
@@ -71,6 +72,7 @@ type oauthUsecase struct {
 	jwtExpiresSecond int64
 	oauthCookie      port.OAuthCookie
 	authRepo         port.AuthRepo
+	authRemoteRepo   port.AuthRepo
 	authView         port.AuthView
 	resRepo          port.ResourceRepo
 }
@@ -81,6 +83,7 @@ func NewOAuthUsecase(
 	jwtExpiresSecond int64,
 	oauthCookie port.OAuthCookie,
 	authRepo port.AuthRepo,
+	authRemoteRepo port.AuthRepo,
 	authView port.AuthView,
 	resRepo port.ResourceRepo,
 ) Usecase {
@@ -91,6 +94,7 @@ func NewOAuthUsecase(
 		jwtExpiresSecond: jwtExpiresSecond,
 		oauthCookie:      oauthCookie,
 		authRepo:         authRepo,
+		authRemoteRepo:   authRemoteRepo,
 		authView:         authView,
 		resRepo:          resRepo,
 	}
@@ -152,7 +156,28 @@ func (u *oauthUsecase) RedirectToLogin(w http.ResponseWriter, r *http.Request) e
 	u.SetReturnURI(w, r)
 	u.SetRedirectURI(w, r)
 
-	return u.authRepo.RedirectToLogin(w, r)
+	return u.authRepo.RedirectToLogin(w, r, "")
+}
+
+func (u *oauthUsecase) RedirectToLoginRemote(w http.ResponseWriter, r *http.Request) error {
+	if r.Form == nil {
+		r.ParseForm()
+	}
+
+	// access token 지우기
+	u.oauthCookie.ClearAccessToken(w)
+	u.SetReturnURI(w, r)
+	u.SetRedirectURI(w, r)
+
+	urlVal := r.Form.Encode()
+	token, err := mjwt.GenerateAccessToken(u.jwtSecret, urlVal, u.jwtExpiresSecond)
+	if err != nil {
+		return err
+	}
+
+	redirectURI := "http://localhost:9096/oauth/authorize/remote/_grant?token=" + token
+
+	return u.authRemoteRepo.RedirectToLogin(w, r, redirectURI)
 }
 
 func (u *oauthUsecase) Authenticate(w http.ResponseWriter, r *http.Request) error {

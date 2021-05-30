@@ -3,9 +3,12 @@ package doauth
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"os"
 
 	"github.com/wonksing/oauth-server/pkg/commons"
+	"github.com/wonksing/oauth-server/pkg/models/mjwt"
+	"github.com/wonksing/oauth-server/pkg/models/moauth"
 	"github.com/wonksing/oauth-server/pkg/usecases/uoauth"
 )
 
@@ -105,10 +108,46 @@ func (h *OAuthHandler) UserAuthorizeHandler(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-// OAuthAuthorizeRedirectHandler 리다이렉션 방식으로 인증/인가할때 사용.
-func (h *OAuthHandler) OAuthAuthorizeRedirectHandler(w http.ResponseWriter, r *http.Request) {
-	// commons.DumpRequest(os.Stdout, "OAuthAuthorizeHandler", r)
+// OAuthAuthorizeRedirectHandler 원격인증 방식으로 인증/인가할때 사용.
+func (h *OAuthHandler) AuthorizeRemoteHandler(w http.ResponseWriter, r *http.Request) {
+	commons.DumpRequest(os.Stdout, "OAuthAuthorizeRemoteHandler", r)
 
+	err := h.oauthUsc.RedirectToLoginRemote(w, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	}
+}
+
+// AuthorizeRemoteGrantHandler 리다이렉션 방식으로 인증/인가할때 사용.
+func (h *OAuthHandler) AuthorizeRemoteGrantHandler(w http.ResponseWriter, r *http.Request) {
+	commons.DumpRequest(os.Stdout, "AuthorizeRemoteGrantHandler", r)
+	if r.Form == nil {
+		r.ParseForm()
+	}
+
+	userID := r.Form.Get("user_id")
+	// scope := r.Form.Get("scope")
+	status := r.Form.Get("allow_status")
+	token := r.Form.Get("token")
+	claim, _, err := mjwt.ValidateAccessToken(token, "qwer")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	r.Form, err = url.ParseQuery(claim.UsrID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	h.oauthUsc.SetReturnURI(w, r)
+
+	ctx := moauth.WithUserIDContext(r.Context(), userID)
+	ctx = moauth.WithAllowStatusContext(ctx, status)
+
+	err = h.oauthUsc.GrantAuthorizeCode(w, r.WithContext(ctx))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	}
 }
 
 func (h *OAuthHandler) OAuthTokenHandler(w http.ResponseWriter, r *http.Request) {

@@ -17,7 +17,7 @@ type OAuthCookie interface {
 }
 
 type AuthRepo interface {
-	RedirectToLogin(w http.ResponseWriter, r *http.Request) error
+	RedirectToLogin(w http.ResponseWriter, r *http.Request, redirectURI string) error
 	RedirectToAuthorize(w http.ResponseWriter, r *http.Request) error
 }
 

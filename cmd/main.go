@@ -178,6 +178,10 @@ func main() {
 		API_OAUTH_LOGIN,
 		API_OAUTH_LOGIN_ACCESS,
 	)
+	authRemoteRepo := repositories.NewOAuthSelfRepo(
+		"http://localhost:9099/oauth/login",
+		"",
+	)
 	authView := views.NewOAuthSelfView(
 		HTML_OAUTH_LOGIN,
 		HTML_OAUTH_ACCESS,
@@ -185,7 +189,7 @@ func main() {
 	resRepo := repositories.NewOAuthUserRepo()
 
 	oauthUsc := uoauth.NewOAuthUsecase(oauthServer, jwtSecret, 360,
-		oauthCookie, authRepo, authView, resRepo,
+		oauthCookie, authRepo, authRemoteRepo, authView, resRepo,
 	)
 
 	oauthHandler := doauth.NewOAuthHandler(oauthUsc)
@@ -210,6 +214,8 @@ func main() {
 	httpServer.Router.HandleFunc(API_OAUTH_LOGIN_ACCESS_AUTHORIZE, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.AuthorizeAccessHandler))
 	// Authorization Code Grant Type
 	httpServer.Router.HandleFunc(API_OAUTH_AUTHORIZE, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.UserAuthorizeHandler))
+	httpServer.Router.HandleFunc("/oauth/authorize/remote", oauthHandler.AuthorizeRemoteHandler)
+	httpServer.Router.HandleFunc("/oauth/authorize/remote/_grant", oauthHandler.AuthorizeRemoteGrantHandler)
 	// http.HandleFunc("/oauth/authorize/redirect", oauthHandler.OAuthAuthorizeHandler)
 
 	// token request for all types of grant

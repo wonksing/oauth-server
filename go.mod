@@ -7,6 +7,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.2 // indirect
 	github.com/go-oauth2/oauth2 v3.9.2+incompatible
 	github.com/go-oauth2/oauth2/v4 v4.3.0
+	github.com/go-session/session v3.1.2+incompatible // indirect
 	github.com/google/uuid v1.2.0 // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
