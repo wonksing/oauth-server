@@ -10,18 +10,12 @@ import (
 )
 
 type OAuthHandler struct {
-	JwtSecret string
-
 	oauthUsc uoauth.Usecase
 }
 
-func NewOAuthHandler(
-	oauthUsc uoauth.Usecase,
-	JwtSecret string,
-) *OAuthHandler {
+func NewOAuthHandler(oauthUsc uoauth.Usecase) *OAuthHandler {
 	return &OAuthHandler{
-		oauthUsc:  oauthUsc,
-		JwtSecret: JwtSecret,
+		oauthUsc: oauthUsc,
 	}
 
 }

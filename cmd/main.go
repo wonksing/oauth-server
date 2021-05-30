@@ -73,8 +73,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	jwtSecret := conf.GetString("app.jwt_secret")
+
 	jwtAccessToken := conf.GetBool("token_config.jwt_access_token")
-	jwtSecret := conf.GetString("token_config.jwt_secret")
+	oAuthJwtSecret := conf.GetString("token_config.jwt_secret")
 	authCodeAccessTokenExp := conf.GetInt("token_config.auth_code.access_token_exp")
 	authCodeRefreshTokenExp := conf.GetInt("token_config.auth_code.refresh_token_exp")
 	authCodeGenerateRefresh := conf.GetBool("token_config.auth_code.generate_refresh")
@@ -89,7 +92,7 @@ func main() {
 
 	oauthServer := commons.NewOAuthServer(authCodeAccessTokenExp, authCodeRefreshTokenExp, authCodeGenerateRefresh,
 		clientCredentialsAccessTokenExp, clientCredentialsRefreshTokenExp, clientCredentialsGenerateRefresh,
-		tokenStoreFilePath, jwtAccessToken, jwtSecret)
+		tokenStoreFilePath, jwtAccessToken, oAuthJwtSecret)
 	for _, val := range ccSettings {
 		v := val.(map[string]interface{})
 		id := v["id"].(string)
@@ -185,7 +188,7 @@ func main() {
 		oauthCookie, authRepo, authView, resRepo,
 	)
 
-	oauthHandler := doauth.NewOAuthHandler(oauthUsc, jwtSecret)
+	oauthHandler := doauth.NewOAuthHandler(oauthUsc)
 	userHandler := duser.NewHttpUserHandler(jwtSecret, 360)
 	jwtMiddleware := dmiddleware.NewJWTMiddleware(jwtSecret, moauth.KeyAccessToken, oauthUsc)
 
