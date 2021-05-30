@@ -130,13 +130,16 @@ func main() {
 	oauthServer.Srv.SetClientScopeHandler(func(tgr *oauth2.TokenGenerateRequest) (allowed bool, err error) {
 		// client credential grant type일때 범위
 
-		_, scope, err := moauth.GetAuthResources(mapScopes, tgr.Scope)
-		if err != nil {
-			allowed = false
-			return
-		}
+		// _, scope, err := moauth.GetAuthResources(mapScopes, tgr.Scope)
+		// if err != nil {
+		// 	allowed = false
+		// 	return
+		// }
+		// allowed = true
+		// tgr.Scope = scope
+
 		allowed = true
-		tgr.Scope = scope
+		err = nil
 
 		return
 	})
@@ -169,7 +172,6 @@ func main() {
 		time.Duration(24*365),
 	)
 	authRepo := repositories.NewOAuthSelfRepo(
-		oauthCookie,
 		API_OAUTH_LOGIN,
 		API_OAUTH_LOGIN_ACCESS,
 	)
@@ -177,7 +179,11 @@ func main() {
 		HTML_OAUTH_LOGIN,
 		HTML_OAUTH_ACCESS,
 	)
-	oauthUsc := uoauth.NewOAuthUsecase(oauthServer, jwtSecret, 360, authRepo, authView)
+	resRepo := repositories.NewOAuthUserRepo()
+
+	oauthUsc := uoauth.NewOAuthUsecase(oauthServer, jwtSecret, 360,
+		oauthCookie, authRepo, authView, resRepo,
+	)
 
 	oauthHandler := doauth.NewOAuthHandler(oauthUsc, jwtSecret)
 	userHandler := duser.NewHttpUserHandler(jwtSecret, 360)
