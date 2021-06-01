@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"flag"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -23,10 +22,12 @@ import (
 	"github.com/wonksing/oauth-server/pkg/deliveries/duser"
 	"github.com/wonksing/oauth-server/pkg/models/merror"
 	"github.com/wonksing/oauth-server/pkg/models/moauth"
+	"github.com/wonksing/oauth-server/pkg/port"
 	"github.com/wonksing/oauth-server/pkg/usecases/uoauth"
 
 	"github.com/go-oauth2/oauth2/v4"
 	"github.com/go-oauth2/oauth2/v4/models"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -37,15 +38,20 @@ var (
 	// portvar   int
 
 	addr           string
+	cert           string
+	certKey        string
+	wt             int
+	rt             int
 	configFileName string
+	loggerFileName string
 )
 
 const (
-	API_OAUTH_LOGIN                  = "/oauth/login"                   // present login page
-	API_OAUTH_LOGIN_AUTHENTICATE     = "/oauth/login/_authenticate"     // validate user id and password
-	API_OAUTH_LOGIN_ACCESS           = "/oauth/login/access"            // present access page
-	API_OAUTH_LOGIN_ACCESS_AUTHORIZE = "/oauth/login/access/_authorize" // authorize access
-	API_OAUTH_AUTHORIZE              = "/oauth/authorize"               // oauth code grant
+	API_OAUTH_LOGIN              = "/oauth/login"               // present login page
+	API_OAUTH_LOGIN_AUTHENTICATE = "/oauth/login/_authenticate" // validate user id and password
+	API_OAUTH_LOGIN_ACCESS       = "/oauth/login/access"        // present access page
+	// API_OAUTH_LOGIN_ACCESS_AUTHORIZE = "/oauth/login/access/_authorize" // authorize access
+	API_OAUTH_AUTHORIZE = "/oauth/authorize" // oauth code grant
 
 	API_OAUTH_TOKEN          = "/oauth/token"
 	API_OAUTH_TOKEN_VALIDATE = "/oauth/token/_validate"
@@ -57,8 +63,41 @@ const (
 
 func init() {
 	flag.StringVar(&addr, "addr", ":9096", "listening address(eg. :9096)")
+	flag.StringVar(&cert, "cert", "", "certificate file path")
+	flag.StringVar(&certKey, "key", "", "key file path")
+	flag.IntVar(&wt, "wt", 30, "write timeout in second")
+	flag.IntVar(&rt, "rt", 30, "read timeout in second")
 	flag.StringVar(&configFileName, "conf", "./configs/server.yml", "config file name")
+	flag.StringVar(&loggerFileName, "logger", "./configs/logger.yml", "logger config file name")
 	flag.BoolVar(&dumpvar, "d", true, "Dump requests and responses")
+}
+
+func initLogger() {
+	// 로깅 설정 로딩
+	logInJSON := false
+	logStdOut := false
+	logFilNam := "./logs/agent.log"
+	logMaxSiz := 50
+	logMaxBup := 50
+	logMaxAge := 31
+	logCompressed := true
+	logLvl := "info"
+
+	loggerConfig := viper.New()
+	loggerConfig.SetConfigFile(loggerFileName)
+	err := loggerConfig.ReadInConfig()
+	if err == nil {
+		logInJSON = loggerConfig.GetBool("logger.json")
+		logStdOut = loggerConfig.GetBool("logger.stdout")
+		logFilNam = loggerConfig.GetString("logger.file.name")
+		logMaxSiz = loggerConfig.GetInt("logger.file.max_size")
+		logMaxBup = loggerConfig.GetInt("logger.file.max_backup")
+		logMaxAge = loggerConfig.GetInt("logger.file.max_age")
+		logCompressed = loggerConfig.GetBool("logger.file.compressed")
+		logLvl = loggerConfig.GetString("logger.level")
+	}
+	commons.InitLogrus(logStdOut, logInJSON, logFilNam, logMaxSiz, logMaxBup, logMaxAge, logCompressed, logLvl)
+
 }
 
 func main() {
@@ -67,14 +106,34 @@ func main() {
 		log.Println("Dumping requests")
 	}
 
+	initLogger()
+
 	conf := viper.New()
 	conf.SetConfigFile(configFileName)
 	err := conf.ReadInConfig()
 	if err != nil {
-		log.Fatal(err)
+		// log.WithFields(commons.LogrusFields()).Infof("NoOfGR:%v, %v", runtime.NumGoroutine(), t)
+		log.WithFields(commons.LogrusFields()).Error(err)
+		return
 	}
-	jwtAccessToken := conf.GetBool("token_config.jwt_access_token")
-	jwtSecret := conf.GetString("token_config.jwt_secret")
+
+	jwtSecret := conf.GetString("app.jwt_secret")
+	jwtExpiresSecond := conf.GetInt64("app.jwt_expires_second")
+
+	remoteAuth := conf.GetBool("oauth.remote.authenticate")
+	remoteAuthURI := conf.GetString("oauth.remote.authenticate_uri")
+	remoteRedirectURI := conf.GetString("oauth.remote.redirect_uri")
+
+	returnURIKey := conf.GetString("oauth.cookie.return_uri_key")
+	returnURIExp := conf.GetInt("oauth.cookie.return_uri_expires_in")
+	accessTokenKey := conf.GetString("oauth.cookie.access_token_key")
+	accessTokenExp := conf.GetInt("oauth.cookie.access_token_expires_in")
+	redirectURIKey := conf.GetString("oauth.cookie.redirect_uri_key")
+	redirectURIExp := conf.GetInt("oauth.cookie.redirect_uri_expires_in")
+
+	jwtAccessToken := conf.GetBool("token_config.jwt_access_token") // oauth access token을 jwt 포맷으로 생성
+	oAuthJwtSecret := conf.GetString("token_config.jwt_secret")
+	// oAuthJwtExpiresSecond := conf.GetInt64("token_config.jwt_expires_second")
 	authCodeAccessTokenExp := conf.GetInt("token_config.auth_code.access_token_exp")
 	authCodeRefreshTokenExp := conf.GetInt("token_config.auth_code.refresh_token_exp")
 	authCodeGenerateRefresh := conf.GetBool("token_config.auth_code.generate_refresh")
@@ -89,7 +148,7 @@ func main() {
 
 	oauthServer := commons.NewOAuthServer(authCodeAccessTokenExp, authCodeRefreshTokenExp, authCodeGenerateRefresh,
 		clientCredentialsAccessTokenExp, clientCredentialsRefreshTokenExp, clientCredentialsGenerateRefresh,
-		tokenStoreFilePath, jwtAccessToken, jwtSecret)
+		tokenStoreFilePath, jwtAccessToken, oAuthJwtSecret)
 	for _, val := range ccSettings {
 		v := val.(map[string]interface{})
 		id := v["id"].(string)
@@ -111,7 +170,7 @@ func main() {
 	mapScopes["emp"] = "/emp,/emp/new,/emp/_add"
 
 	oauthServer.Srv.SetResponseErrorHandler(func(re *oauthErrors.Response) {
-		log.Println(re.Error)
+		log.WithFields(commons.LogrusFields()).Error(re.Error)
 		if re.Error == merror.ErrorNotAllowedScop {
 			re.StatusCode = http.StatusUnauthorized
 			re.Description = http.StatusText(http.StatusUnauthorized)
@@ -130,13 +189,16 @@ func main() {
 	oauthServer.Srv.SetClientScopeHandler(func(tgr *oauth2.TokenGenerateRequest) (allowed bool, err error) {
 		// client credential grant type일때 범위
 
-		_, scope, err := moauth.GetAuthResources(mapScopes, tgr.Scope)
-		if err != nil {
-			allowed = false
-			return
-		}
+		// _, scope, err := moauth.GetAuthResources(mapScopes, tgr.Scope)
+		// if err != nil {
+		// 	allowed = false
+		// 	return
+		// }
+		// allowed = true
+		// tgr.Scope = scope
+
 		allowed = true
-		tgr.Scope = scope
+		err = nil
 
 		return
 	})
@@ -161,68 +223,83 @@ func main() {
 	})
 
 	oauthCookie := cookies.NewOAuthCookie(
-		moauth.KeyReturnURI,
-		time.Duration(24*365),
-		moauth.KeyAccessToken,
-		time.Duration(24*365),
-		moauth.KeyRedirectURI,
-		time.Duration(24*365),
+		returnURIKey,
+		time.Duration(returnURIExp)*time.Hour,
+		accessTokenKey,
+		time.Duration(accessTokenExp)*time.Hour,
+		redirectURIKey,
+		time.Duration(redirectURIExp)*time.Hour,
 	)
-	authRepo := repositories.NewOAuthSelfRepo(
-		oauthCookie,
-		API_OAUTH_LOGIN,
-		API_OAUTH_LOGIN_ACCESS,
-	)
+	var authRepo port.AuthRepo
+	if remoteAuth {
+		authRepo = repositories.NewOAuthRemoteRepo(
+			oauthCookie,
+			jwtSecret,
+			jwtExpiresSecond,
+			remoteAuthURI,
+			"",
+			remoteRedirectURI,
+		)
+	} else {
+		authRepo = repositories.NewOAuthSelfRepo(
+			oauthCookie,
+			jwtSecret,
+			API_OAUTH_LOGIN,
+			API_OAUTH_LOGIN_ACCESS,
+		)
+	}
 	authView := views.NewOAuthSelfView(
 		HTML_OAUTH_LOGIN,
 		HTML_OAUTH_ACCESS,
 	)
-	oauthUsc := uoauth.NewOAuthUsecase(oauthServer, jwtSecret, 360, authRepo, authView)
+	resRepo := repositories.NewOAuthUserRepo()
 
-	oauthHandler := doauth.NewOAuthHandler(oauthUsc, jwtSecret)
-	userHandler := duser.NewHttpUserHandler(jwtSecret, 360)
+	oauthUsc := uoauth.NewOAuthUsecase(oauthServer, jwtSecret, jwtExpiresSecond,
+		oauthCookie, authRepo, authView, resRepo,
+	)
+
+	oauthHandler := doauth.NewOAuthHandler(oauthUsc)
+	userHandler := duser.NewHttpUserHandler(jwtSecret, jwtExpiresSecond)
 	jwtMiddleware := dmiddleware.NewJWTMiddleware(jwtSecret, moauth.KeyAccessToken, oauthUsc)
 
-	httpServer := commons.NewHttpServer(addr, 30, 30, "", "", nil, nil, nil)
+	httpServer := commons.NewHttpServer(addr, wt, rt, cert, certKey, nil, nil, nil)
 
 	// 테스트용 API
 	httpServer.Router.HandleFunc(duser.API_INDEX, userHandler.IndexHandler).Methods("GET")
 	httpServer.Router.HandleFunc(duser.API_LOGIN, userHandler.LoginHandler).Methods("GET")
 	httpServer.Router.HandleFunc(duser.API_AUTHENTICATE, userHandler.AuthenticateHandler).Methods("POST")
-	httpServer.Router.HandleFunc(duser.API_HELLO, jwtMiddleware.AuthJWTHandler(userHandler.HelloHandler, duser.API_LOGIN))
+	httpServer.Router.HandleFunc(duser.API_HELLO, jwtMiddleware.AuthJWTHandler(userHandler.HelloHandler, duser.API_LOGIN)).Methods("GET")
 
 	// OAuth2 API
 	// 리소스 서버에 인증하러 보내기
-	httpServer.Router.HandleFunc(API_OAUTH_LOGIN, oauthHandler.LoginHandler)
+	httpServer.Router.HandleFunc(API_OAUTH_LOGIN, oauthHandler.LoginHandler).Methods("GET")
 	// 리소스 서버에서 인증하기
-	httpServer.Router.HandleFunc(API_OAUTH_LOGIN_AUTHENTICATE, oauthHandler.AuthenticateHandler)
+	httpServer.Router.HandleFunc(API_OAUTH_LOGIN_AUTHENTICATE, oauthHandler.AuthenticateHandler).Methods("POST")
 	// 리소스 서버의 정보 인가하러 보내기
-	httpServer.Router.HandleFunc(API_OAUTH_LOGIN_ACCESS, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.AccessHandler))
-	httpServer.Router.HandleFunc(API_OAUTH_LOGIN_ACCESS_AUTHORIZE, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.AuthorizeAccessHandler))
+	httpServer.Router.HandleFunc(API_OAUTH_LOGIN_ACCESS, oauthHandler.AccessHandler).Methods("GET")
 	// Authorization Code Grant Type
-	httpServer.Router.HandleFunc(API_OAUTH_AUTHORIZE, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.UserAuthorizeHandler))
-	// http.HandleFunc("/oauth/authorize/redirect", oauthHandler.OAuthAuthorizeHandler)
+	httpServer.Router.HandleFunc(API_OAUTH_AUTHORIZE, oauthHandler.GrantAuthorizeCodeHandler).Methods("POST", "GET")
 
 	// token request for all types of grant
 	// Client Credentials Grant comes here directly
 	// Client Server용 API
-	httpServer.Router.HandleFunc(API_OAUTH_TOKEN, oauthHandler.OAuthTokenHandler)
+	httpServer.Router.HandleFunc(API_OAUTH_TOKEN, oauthHandler.OAuthTokenHandler).Methods("POST", "GET")
 
 	// validate access token
-	httpServer.Router.HandleFunc(API_OAUTH_TOKEN_VALIDATE, oauthHandler.OAuthValidateTokenHandler)
+	httpServer.Router.HandleFunc(API_OAUTH_TOKEN_VALIDATE, oauthHandler.OAuthValidateTokenHandler).Methods("POST", "GET")
 
 	// client credential 저장
-	httpServer.Router.HandleFunc(API_OAUTH_CREDENTIALS, oauthHandler.CredentialHandler)
+	httpServer.Router.HandleFunc(API_OAUTH_CREDENTIALS, oauthHandler.CredentialHandler).Methods("PUT")
 
-	log.Printf("Server is running at %v.\n", addr)
-	log.Printf("Point your OAuth client Auth endpoint to %s%s", "http://"+addr, "/oauth/authorize")
-	log.Printf("Point your OAuth client Token endpoint to %s%s", "http://"+addr, "/oauth/token")
+	log.WithFields(commons.LogrusFields()).Infof("Server is running at %v.\n", addr)
+	log.WithFields(commons.LogrusFields()).Infof("Point your OAuth client Auth endpoint to %s%s", "http://"+addr, "/oauth/authorize")
+	log.WithFields(commons.LogrusFields()).Infof("Point your OAuth client Token endpoint to %s%s", "http://"+addr, "/oauth/token")
 
 	startSyscallChecker(httpServer)
 
 	err = httpServer.Start()
 	if err != nil {
-		log.Println(err)
+		log.WithFields(commons.LogrusFields()).Error(err)
 	}
 
 	// ticker.Stop()

@@ -1,12 +1,15 @@
 package commons
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
+	"github.com/go-oauth2/oauth2/v4"
 	"github.com/go-oauth2/oauth2/v4/errors"
 	"github.com/go-oauth2/oauth2/v4/generates"
 	"github.com/go-oauth2/oauth2/v4/manage"
@@ -64,6 +67,7 @@ func initManager(clientStore *store.ClientStore,
 func initServer(manager *manage.Manager) *server.Server {
 	srv := server.NewDefaultServer(manager)
 	srv.Config.AllowGetAccessRequest = true
+	srv.SetAllowedGrantType(oauth2.AuthorizationCode, oauth2.ClientCredentials, oauth2.PasswordCredentials)
 	return srv
 }
 
@@ -148,4 +152,9 @@ func VerifyJWT(secret string, tokenStr string) (string, error) {
 
 	fmt.Println("claims:", claims.Audience, claims.Id, claims.Subject)
 	return claims.Audience, nil
+}
+
+func GenCodeChallengeS256(s string) string {
+	s256 := sha256.Sum256([]byte(s))
+	return base64.URLEncoding.EncodeToString(s256[:])
 }

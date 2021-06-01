@@ -1,6 +1,24 @@
+app:
+  jwt_secret: 'qwer'
+  jwt_expires_second: 360
+
+oauth:
+  remote:
+    authenticate: false
+    authenticate_uri: 'http://localhost:9099/oauth/login'
+    redirect_uri: 'http://localhost:9096/oauth/authorize'
+  cookie:
+    return_uri_key: 'oauth_return_uri'
+    return_uri_expires_in: 24
+    access_token_key: 'oauth_access_token'
+    access_token_expires_in: 24
+    redirect_uri_key: 'oauth_redirect_uri'
+    redirect_uri_expires_in: 24
+
 token_config:
   jwt_access_token: true
   jwt_secret: 'asdf'
+  # jwt_expires_second: 360
   auth_code:
     access_token_exp: 2
     refresh_token_exp: 72
@@ -28,3 +46,4 @@ client_credentials:
     id: '222222'
     secret: '22222222'
     domain: 'localhost:8080'
+

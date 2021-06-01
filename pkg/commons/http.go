@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gorilla/handlers"
@@ -51,6 +52,20 @@ func DumpRequest(writer io.Writer, header string, r *http.Request) error {
 func Redirect(w http.ResponseWriter, redirectURI string) {
 	w.Header().Set("Location", redirectURI)
 	w.WriteHeader(http.StatusFound)
+}
+
+func BearerAuth(r *http.Request) (string, bool) {
+	auth := r.Header.Get("Authorization")
+	prefix := "Bearer "
+	token := ""
+
+	if auth != "" && strings.HasPrefix(auth, prefix) {
+		token = auth[len(prefix):]
+	} else {
+		token = r.FormValue("access_token")
+	}
+
+	return token, token != ""
 }
 
 type HttpServer struct {

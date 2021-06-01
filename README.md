@@ -7,8 +7,22 @@ go get github.com/dgrijalva/jwt-go
 go get -u -v github.com/go-oauth2/oauth2/v4/...
 go get -u github.com/gorilla/mux
 go get -u github.com/gorilla/handlers
+
+go get -u github.com/natefinch/lumberjack
+go get -u github.com/sirupsen/logrus
+
+go get golang.org/x/oauth2
 ```
 
+## Scripts
+```bash
+curl \
+-X GET \
+-H 'Authorization: Bearer eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiIxMjM0NSIsImV4cCI6MTYyMjU2NzU5OCwic3ViIjoiYXNkZiJ9.4SoiSNp-OgukBPvcD5Sj6pReQMrFRiVp3mlKWpx70u1oCS5FywCfuRStuG6FYtfbKEWjoLFxMBQCVoZWE7CvWQ' \
+'http://localhost:9099/oauth/protected'
+
+
+```
 
 http://localhost:9096/oauth/authorize?client_id=12345&code_challenge=Qn3Kywp0OiU4NK_AFzGPlmrcYJDJ13Abj_jdL08Ahg8%3D&code_challenge_method=S256&redirect_uri=http%3A%2F%2Flocalhost%3A9094%2Foauth2&response_type=code&scope=all&state=xyz
 
