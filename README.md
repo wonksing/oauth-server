@@ -7,6 +7,9 @@ go get github.com/dgrijalva/jwt-go
 go get -u -v github.com/go-oauth2/oauth2/v4/...
 go get -u github.com/gorilla/mux
 go get -u github.com/gorilla/handlers
+
+go get -u github.com/natefinch/lumberjack
+go get -u github.com/sirupsen/logrus
 ```
 
 
