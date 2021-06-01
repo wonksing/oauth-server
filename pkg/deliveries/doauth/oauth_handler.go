@@ -3,12 +3,9 @@ package doauth
 import (
 	"encoding/json"
 	"net/http"
-	"net/url"
 	"os"
 
 	"github.com/wonksing/oauth-server/pkg/commons"
-	"github.com/wonksing/oauth-server/pkg/models/mjwt"
-	"github.com/wonksing/oauth-server/pkg/models/moauth"
 	"github.com/wonksing/oauth-server/pkg/usecases/uoauth"
 )
 
@@ -79,72 +76,12 @@ func (h *OAuthHandler) AccessHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// AuthorizeAccessHandler 엑세스를 허용/거절한다
-func (h *OAuthHandler) AuthorizeAccessHandler(w http.ResponseWriter, r *http.Request) {
-	_ = commons.DumpRequest(os.Stdout, "AuthorizeAccessHandler", r) // Ignore the error
-
-	if r.Method != "POST" {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-	ctx, err := h.oauthUsc.AuthorizeAccess(w, r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	h.UserAuthorizeHandler(w, r.WithContext(ctx))
-
-}
-
-// UserAuthorizeHandler 인증&인가 확인 및 code 생성.
+// GrantAuthorizeCodeHandler 인증&인가 확인 및 code 생성.
 // 로그인 후 권한 인가를 허용한 사용자인 경우 auth code를 생성하여 redirect_uri 로 보낸다.
-func (h *OAuthHandler) UserAuthorizeHandler(w http.ResponseWriter, r *http.Request) {
-	commons.DumpRequest(os.Stdout, "UserAuthorizeHandler", r)
+func (h *OAuthHandler) GrantAuthorizeCodeHandler(w http.ResponseWriter, r *http.Request) {
+	commons.DumpRequest(os.Stdout, "GrantAuthorizeCodeHandler", r)
 
 	err := h.oauthUsc.GrantAuthorizeCode(w, r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-	}
-}
-
-// OAuthAuthorizeRedirectHandler 원격인증 방식으로 인증/인가할때 사용.
-func (h *OAuthHandler) AuthorizeRemoteHandler(w http.ResponseWriter, r *http.Request) {
-	commons.DumpRequest(os.Stdout, "OAuthAuthorizeRemoteHandler", r)
-
-	err := h.oauthUsc.RedirectToLoginRemote(w, r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-	}
-}
-
-// AuthorizeRemoteGrantHandler 리다이렉션 방식으로 인증/인가할때 사용.
-func (h *OAuthHandler) AuthorizeRemoteGrantHandler(w http.ResponseWriter, r *http.Request) {
-	commons.DumpRequest(os.Stdout, "AuthorizeRemoteGrantHandler", r)
-	if r.Form == nil {
-		r.ParseForm()
-	}
-
-	userID := r.Form.Get("user_id")
-	// scope := r.Form.Get("scope")
-	status := r.Form.Get("allow_status")
-	token := r.Form.Get("token")
-	claim, _, err := mjwt.ValidateAccessToken(token, "qwer")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	r.Form, err = url.ParseQuery(claim.UsrID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	h.oauthUsc.SetReturnURI(w, r)
-
-	ctx := moauth.WithUserIDContext(r.Context(), userID)
-	ctx = moauth.WithAllowStatusContext(ctx, status)
-
-	err = h.oauthUsc.GrantAuthorizeCode(w, r.WithContext(ctx))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	}
