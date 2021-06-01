@@ -102,10 +102,10 @@ func (repo *OAuthRemoteRepo) GetReturnURI(r *http.Request) (string, error) {
 	if err != nil {
 		return "", errors.New("return_uri not found")
 	}
-	if claim.UsrID == "" {
+	if claim.ReturnURI == "" {
 		return "", errors.New("return_uri not found")
 	}
-	r.Form, err = url.ParseQuery(claim.UsrID)
+	r.Form, err = url.ParseQuery(claim.ReturnURI)
 	if err != nil {
 		return "", errors.New("return_uri not found")
 	}
@@ -118,7 +118,7 @@ func (repo *OAuthRemoteRepo) RedirectToLogin(w http.ResponseWriter, r *http.Requ
 	repo.oauthCookie.ClearAccessToken(w)
 
 	urlVal := r.Form.Encode()
-	token, err := mjwt.GenerateAccessToken(repo.jwtSecret, urlVal, repo.jwtExpiresSecond)
+	token, err := mjwt.GenerateAccessToken(repo.jwtSecret, "", repo.jwtExpiresSecond, urlVal)
 	if err != nil {
 		return err
 	}
