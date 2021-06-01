@@ -81,7 +81,7 @@ func (h *HttpUserHandler) AuthenticateHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	accessToken, err := mjwt.GenerateAccessToken(h.jwtSecret, userID, h.jwtExpiresSecond)
+	accessToken, err := mjwt.GenerateAccessToken(h.jwtSecret, userID, h.jwtExpiresSecond, "")
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return

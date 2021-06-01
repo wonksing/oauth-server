@@ -13,6 +13,7 @@ import (
 	oauthErrors "github.com/go-oauth2/oauth2/v4/errors"
 
 	"github.com/spf13/viper"
+	"github.com/wonksing/oauth-server/cmd/restapis"
 	"github.com/wonksing/oauth-server/pkg/adaptors/cookies"
 	"github.com/wonksing/oauth-server/pkg/adaptors/repositories"
 	"github.com/wonksing/oauth-server/pkg/adaptors/views"
@@ -46,20 +47,20 @@ var (
 	loggerFileName string
 )
 
-const (
-	API_OAUTH_LOGIN              = "/oauth/login"               // present login page
-	API_OAUTH_LOGIN_AUTHENTICATE = "/oauth/login/_authenticate" // validate user id and password
-	API_OAUTH_LOGIN_ACCESS       = "/oauth/login/access"        // present access page
-	// API_OAUTH_LOGIN_ACCESS_AUTHORIZE = "/oauth/login/access/_authorize" // authorize access
-	API_OAUTH_AUTHORIZE = "/oauth/authorize" // oauth code grant
+// const (
+// 	API_OAUTH_LOGIN              = "/oauth/login"               // present login page
+// 	API_OAUTH_LOGIN_AUTHENTICATE = "/oauth/login/_authenticate" // validate user id and password
+// 	API_OAUTH_LOGIN_ACCESS       = "/oauth/login/access"        // present access page
+// 	// API_OAUTH_LOGIN_ACCESS_AUTHORIZE = "/oauth/login/access/_authorize" // authorize access
+// 	API_OAUTH_AUTHORIZE = "/oauth/authorize" // oauth code grant
 
-	API_OAUTH_TOKEN          = "/oauth/token"
-	API_OAUTH_TOKEN_VALIDATE = "/oauth/token/_validate"
-	API_OAUTH_CREDENTIALS    = "/oauth/credentials"
+// 	API_OAUTH_TOKEN          = "/oauth/token"
+// 	API_OAUTH_TOKEN_VALIDATE = "/oauth/token/_validate"
+// 	API_OAUTH_CREDENTIALS    = "/oauth/credentials"
 
-	HTML_OAUTH_LOGIN  = "static/oauth/login.html"
-	HTML_OAUTH_ACCESS = "static/oauth/access.html"
-)
+// 	HTML_OAUTH_LOGIN  = "static/oauth/login.html"
+// 	HTML_OAUTH_ACCESS = "static/oauth/access.html"
+// )
 
 func init() {
 	flag.StringVar(&addr, "addr", ":9096", "listening address(eg. :9096)")
@@ -244,13 +245,13 @@ func main() {
 		authRepo = repositories.NewOAuthSelfRepo(
 			oauthCookie,
 			jwtSecret,
-			API_OAUTH_LOGIN,
-			API_OAUTH_LOGIN_ACCESS,
+			restapis.API_OAUTH_LOGIN,
+			restapis.API_OAUTH_LOGIN_ACCESS,
 		)
 	}
 	authView := views.NewOAuthSelfView(
-		HTML_OAUTH_LOGIN,
-		HTML_OAUTH_ACCESS,
+		restapis.HTML_OAUTH_LOGIN,
+		restapis.HTML_OAUTH_ACCESS,
 	)
 	resRepo := repositories.NewOAuthUserRepo()
 
@@ -261,35 +262,13 @@ func main() {
 	oauthHandler := doauth.NewOAuthHandler(oauthUsc)
 	userHandler := duser.NewHttpUserHandler(jwtSecret, jwtExpiresSecond)
 	jwtMiddleware := dmiddleware.NewJWTMiddleware(jwtSecret, moauth.KeyAccessToken, oauthUsc)
-
 	httpServer := commons.NewHttpServer(addr, wt, rt, cert, certKey, nil, nil, nil)
 
 	// 테스트용 API
-	httpServer.Router.HandleFunc(duser.API_INDEX, userHandler.IndexHandler).Methods("GET")
-	httpServer.Router.HandleFunc(duser.API_LOGIN, userHandler.LoginHandler).Methods("GET")
-	httpServer.Router.HandleFunc(duser.API_AUTHENTICATE, userHandler.AuthenticateHandler).Methods("POST")
-	httpServer.Router.HandleFunc(duser.API_HELLO, jwtMiddleware.AuthJWTHandler(userHandler.HelloHandler, duser.API_LOGIN)).Methods("GET")
+	restapis.RegisterTestAPIs(httpServer.Router, jwtMiddleware, userHandler)
 
 	// OAuth2 API
-	// 리소스 서버에 인증하러 보내기
-	httpServer.Router.HandleFunc(API_OAUTH_LOGIN, oauthHandler.LoginHandler).Methods("GET")
-	// 리소스 서버에서 인증하기
-	httpServer.Router.HandleFunc(API_OAUTH_LOGIN_AUTHENTICATE, oauthHandler.AuthenticateHandler).Methods("POST")
-	// 리소스 서버의 정보 인가하러 보내기
-	httpServer.Router.HandleFunc(API_OAUTH_LOGIN_ACCESS, oauthHandler.AccessHandler).Methods("GET")
-	// Authorization Code Grant Type
-	httpServer.Router.HandleFunc(API_OAUTH_AUTHORIZE, oauthHandler.GrantAuthorizeCodeHandler).Methods("POST", "GET")
-
-	// token request for all types of grant
-	// Client Credentials Grant comes here directly
-	// Client Server용 API
-	httpServer.Router.HandleFunc(API_OAUTH_TOKEN, oauthHandler.OAuthTokenHandler).Methods("POST", "GET")
-
-	// validate access token
-	httpServer.Router.HandleFunc(API_OAUTH_TOKEN_VALIDATE, oauthHandler.OAuthValidateTokenHandler).Methods("POST", "GET")
-
-	// client credential 저장
-	httpServer.Router.HandleFunc(API_OAUTH_CREDENTIALS, oauthHandler.CredentialHandler).Methods("PUT")
+	restapis.RegisterOAuthAPIs(httpServer.Router, oauthHandler)
 
 	log.WithFields(commons.LogrusFields()).Infof("Server is running at %v.\n", addr)
 	log.WithFields(commons.LogrusFields()).Infof("Point your OAuth client Auth endpoint to %s%s", "http://"+addr, "/oauth/authorize")

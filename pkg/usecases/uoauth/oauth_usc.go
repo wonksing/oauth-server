@@ -145,7 +145,7 @@ func (u *oauthUsecase) Authenticate(w http.ResponseWriter, r *http.Request) erro
 		return errors.New("return uri does not exist")
 	}
 
-	accessToken, err := mjwt.GenerateAccessToken(u.jwtSecret, userID, u.jwtExpiresSecond)
+	accessToken, err := mjwt.GenerateAccessToken(u.jwtSecret, userID, u.jwtExpiresSecond, "")
 	if err != nil {
 		return err
 	}
