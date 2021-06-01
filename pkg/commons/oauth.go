@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
+	"github.com/go-oauth2/oauth2/v4"
 	"github.com/go-oauth2/oauth2/v4/errors"
 	"github.com/go-oauth2/oauth2/v4/generates"
 	"github.com/go-oauth2/oauth2/v4/manage"
@@ -66,6 +67,7 @@ func initManager(clientStore *store.ClientStore,
 func initServer(manager *manage.Manager) *server.Server {
 	srv := server.NewDefaultServer(manager)
 	srv.Config.AllowGetAccessRequest = true
+	srv.SetAllowedGrantType(oauth2.AuthorizationCode, oauth2.ClientCredentials, oauth2.PasswordCredentials)
 	return srv
 }
 

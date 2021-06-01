@@ -37,15 +37,13 @@ func main() {
 
 	http.HandleFunc("/oauth/login", oauthLoginHandler)
 
-	http.HandleFunc("/protected", protectedHandler)
-
-	http.HandleFunc("/logout", logoutHandler)
+	http.HandleFunc("/oauth/protected", oauthProtectedHandler)
 
 	tmpAddr := addr
 	if strings.HasPrefix(addr, ":") {
 		tmpAddr = "localhost" + addr
 	}
-	log.Printf("Resource is running at %s. Please open http://%s", addr, tmpAddr)
+	log.Printf("Resource is running at %s. Please open %s", addr, tmpAddr)
 	log.Fatal(http.ListenAndServe(addr, nil))
 }
 
@@ -140,39 +138,29 @@ func oauthLoginHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func protectedHandler(w http.ResponseWriter, r *http.Request) {
+func oauthProtectedHandler(w http.ResponseWriter, r *http.Request) {
 	if dumpvar {
-		_ = commons.DumpRequest(os.Stdout, "protectedHandler", r) // Ignore the error
+		_ = commons.DumpRequest(os.Stdout, "oauthProtectedHandler", r) // Ignore the error
 	}
-	store, err := session.Start(context.Background(), w, r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	if r.Form == nil {
+		r.ParseForm()
+	}
+	token, ok := commons.BearerAuth(r)
+	if !ok {
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
-	if _, ok := store.Get("userID"); !ok {
-		w.Header().Set("Location", "/login")
-		w.WriteHeader(http.StatusFound)
+
+	userID, err := commons.VerifyJWT("asdf", token)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		return
+	}
+
+	if userID == "" {
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
 
 	commons.OutputHTML(w, r, "static/protected.html")
-}
-
-func logoutHandler(w http.ResponseWriter, r *http.Request) {
-	if dumpvar {
-		_ = commons.DumpRequest(os.Stdout, "logoutHandler", r) // Ignore the error
-	}
-
-	store, err := session.Start(context.Background(), w, r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	err = store.Flush()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	commons.OutputHTML(w, r, "static/index.html")
 }
