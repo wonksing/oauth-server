@@ -76,39 +76,15 @@ func (h *OAuthHandler) AccessHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// AuthorizeAccessHandler 엑세스를 허용/거절한다
-func (h *OAuthHandler) AuthorizeAccessHandler(w http.ResponseWriter, r *http.Request) {
-	_ = commons.DumpRequest(os.Stdout, "AuthorizeAccessHandler", r) // Ignore the error
-
-	if r.Method != "POST" {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-	ctx, err := h.oauthUsc.AuthorizeAccess(w, r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	h.UserAuthorizeHandler(w, r.WithContext(ctx))
-
-}
-
-// UserAuthorizeHandler 인증&인가 확인 및 code 생성.
+// GrantAuthorizeCodeHandler 인증&인가 확인 및 code 생성.
 // 로그인 후 권한 인가를 허용한 사용자인 경우 auth code를 생성하여 redirect_uri 로 보낸다.
-func (h *OAuthHandler) UserAuthorizeHandler(w http.ResponseWriter, r *http.Request) {
-	commons.DumpRequest(os.Stdout, "UserAuthorizeHandler", r)
+func (h *OAuthHandler) GrantAuthorizeCodeHandler(w http.ResponseWriter, r *http.Request) {
+	commons.DumpRequest(os.Stdout, "GrantAuthorizeCodeHandler", r)
 
 	err := h.oauthUsc.GrantAuthorizeCode(w, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	}
-}
-
-// OAuthAuthorizeRedirectHandler 리다이렉션 방식으로 인증/인가할때 사용.
-func (h *OAuthHandler) OAuthAuthorizeRedirectHandler(w http.ResponseWriter, r *http.Request) {
-	// commons.DumpRequest(os.Stdout, "OAuthAuthorizeHandler", r)
-
 }
 
 func (h *OAuthHandler) OAuthTokenHandler(w http.ResponseWriter, r *http.Request) {

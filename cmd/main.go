@@ -23,6 +23,7 @@ import (
 	"github.com/wonksing/oauth-server/pkg/deliveries/duser"
 	"github.com/wonksing/oauth-server/pkg/models/merror"
 	"github.com/wonksing/oauth-server/pkg/models/moauth"
+	"github.com/wonksing/oauth-server/pkg/port"
 	"github.com/wonksing/oauth-server/pkg/usecases/uoauth"
 
 	"github.com/go-oauth2/oauth2/v4"
@@ -41,11 +42,11 @@ var (
 )
 
 const (
-	API_OAUTH_LOGIN                  = "/oauth/login"                   // present login page
-	API_OAUTH_LOGIN_AUTHENTICATE     = "/oauth/login/_authenticate"     // validate user id and password
-	API_OAUTH_LOGIN_ACCESS           = "/oauth/login/access"            // present access page
-	API_OAUTH_LOGIN_ACCESS_AUTHORIZE = "/oauth/login/access/_authorize" // authorize access
-	API_OAUTH_AUTHORIZE              = "/oauth/authorize"               // oauth code grant
+	API_OAUTH_LOGIN              = "/oauth/login"               // present login page
+	API_OAUTH_LOGIN_AUTHENTICATE = "/oauth/login/_authenticate" // validate user id and password
+	API_OAUTH_LOGIN_ACCESS       = "/oauth/login/access"        // present access page
+	// API_OAUTH_LOGIN_ACCESS_AUTHORIZE = "/oauth/login/access/_authorize" // authorize access
+	API_OAUTH_AUTHORIZE = "/oauth/authorize" // oauth code grant
 
 	API_OAUTH_TOKEN          = "/oauth/token"
 	API_OAUTH_TOKEN_VALIDATE = "/oauth/token/_validate"
@@ -75,9 +76,15 @@ func main() {
 	}
 
 	jwtSecret := conf.GetString("app.jwt_secret")
+	jwtExpiresSecond := conf.GetInt64("app.jwt_expires_second")
 
-	jwtAccessToken := conf.GetBool("token_config.jwt_access_token")
+	remoteAuth := conf.GetBool("oauth.remote.authenticate")
+	remoteAuthURI := conf.GetString("oauth.remote.authenticate_uri")
+	remoteRedirectURI := conf.GetString("oauth.remote.redirect_uri")
+
+	jwtAccessToken := conf.GetBool("token_config.jwt_access_token") // oauth access token을 jwt 포맷으로 생성
 	oAuthJwtSecret := conf.GetString("token_config.jwt_secret")
+	// oAuthJwtExpiresSecond := conf.GetInt64("token_config.jwt_expires_second")
 	authCodeAccessTokenExp := conf.GetInt("token_config.auth_code.access_token_exp")
 	authCodeRefreshTokenExp := conf.GetInt("token_config.auth_code.refresh_token_exp")
 	authCodeGenerateRefresh := conf.GetBool("token_config.auth_code.generate_refresh")
@@ -174,22 +181,36 @@ func main() {
 		moauth.KeyRedirectURI,
 		time.Duration(24*365),
 	)
-	authRepo := repositories.NewOAuthSelfRepo(
-		API_OAUTH_LOGIN,
-		API_OAUTH_LOGIN_ACCESS,
-	)
+	var authRepo port.AuthRepo
+	if remoteAuth {
+		authRepo = repositories.NewOAuthRemoteRepo(
+			oauthCookie,
+			jwtSecret,
+			jwtExpiresSecond,
+			remoteAuthURI,
+			"",
+			remoteRedirectURI,
+		)
+	} else {
+		authRepo = repositories.NewOAuthSelfRepo(
+			oauthCookie,
+			jwtSecret,
+			API_OAUTH_LOGIN,
+			API_OAUTH_LOGIN_ACCESS,
+		)
+	}
 	authView := views.NewOAuthSelfView(
 		HTML_OAUTH_LOGIN,
 		HTML_OAUTH_ACCESS,
 	)
 	resRepo := repositories.NewOAuthUserRepo()
 
-	oauthUsc := uoauth.NewOAuthUsecase(oauthServer, jwtSecret, 360,
+	oauthUsc := uoauth.NewOAuthUsecase(oauthServer, jwtSecret, jwtExpiresSecond,
 		oauthCookie, authRepo, authView, resRepo,
 	)
 
 	oauthHandler := doauth.NewOAuthHandler(oauthUsc)
-	userHandler := duser.NewHttpUserHandler(jwtSecret, 360)
+	userHandler := duser.NewHttpUserHandler(jwtSecret, jwtExpiresSecond)
 	jwtMiddleware := dmiddleware.NewJWTMiddleware(jwtSecret, moauth.KeyAccessToken, oauthUsc)
 
 	httpServer := commons.NewHttpServer(addr, 30, 30, "", "", nil, nil, nil)
@@ -206,11 +227,9 @@ func main() {
 	// 리소스 서버에서 인증하기
 	httpServer.Router.HandleFunc(API_OAUTH_LOGIN_AUTHENTICATE, oauthHandler.AuthenticateHandler)
 	// 리소스 서버의 정보 인가하러 보내기
-	httpServer.Router.HandleFunc(API_OAUTH_LOGIN_ACCESS, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.AccessHandler))
-	httpServer.Router.HandleFunc(API_OAUTH_LOGIN_ACCESS_AUTHORIZE, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.AuthorizeAccessHandler))
+	httpServer.Router.HandleFunc(API_OAUTH_LOGIN_ACCESS, oauthHandler.AccessHandler)
 	// Authorization Code Grant Type
-	httpServer.Router.HandleFunc(API_OAUTH_AUTHORIZE, jwtMiddleware.OAuthAuthJWTHandler(oauthHandler.UserAuthorizeHandler))
-	// http.HandleFunc("/oauth/authorize/redirect", oauthHandler.OAuthAuthorizeHandler)
+	httpServer.Router.HandleFunc(API_OAUTH_AUTHORIZE, oauthHandler.GrantAuthorizeCodeHandler)
 
 	// token request for all types of grant
 	// Client Credentials Grant comes here directly
