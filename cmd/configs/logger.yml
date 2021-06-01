@@ -1,0 +1,10 @@
+logger:
+  json: true
+  stdout: true
+  file:
+    name: 'logs/agent.log'
+    max_size: 50
+    max_backup: 100
+    max_age: 31
+    compressed: true
+  level: 'debug'
