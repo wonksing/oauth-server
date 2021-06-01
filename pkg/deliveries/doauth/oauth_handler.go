@@ -24,11 +24,6 @@ func NewOAuthHandler(oauthUsc uoauth.Usecase) *OAuthHandler {
 func (h *OAuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	commons.DumpRequest(os.Stdout, "OAuthLoginHandler", r) // Ignore the error
 
-	if r.Method != "GET" {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-
 	err := h.oauthUsc.Login(w, r)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -40,11 +35,6 @@ func (h *OAuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 // GET 메소드면 로그인 페이지로 보내고, POST면 아이디와 비번을 검증한다.
 func (h *OAuthHandler) AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 	commons.DumpRequest(os.Stdout, "OAuthAuthenticateHandler", r) // Ignore the error
-
-	if r.Method != "POST" {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
 
 	err := h.oauthUsc.Authenticate(w, r)
 	if err != nil {
@@ -63,11 +53,6 @@ func (h *OAuthHandler) AuthenticateHandler(w http.ResponseWriter, r *http.Reques
 // AccessHandler 엑세스 허용 페이지로 보낸다.
 func (h *OAuthHandler) AccessHandler(w http.ResponseWriter, r *http.Request) {
 	commons.DumpRequest(os.Stdout, "OAuthLoginHandler", r) // Ignore the error
-
-	if r.Method != "GET" {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
 
 	err := h.oauthUsc.Authorize(w, r)
 	if err != nil {
@@ -110,10 +95,6 @@ func (h *OAuthHandler) OAuthValidateTokenHandler(w http.ResponseWriter, r *http.
 }
 
 func (h *OAuthHandler) CredentialHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "PUT" {
-		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-		return
-	}
 
 	clientID := r.FormValue("client_id")
 	clientSecret := r.FormValue("client_secret")

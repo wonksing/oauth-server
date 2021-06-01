@@ -219,28 +219,28 @@ func main() {
 	httpServer.Router.HandleFunc(duser.API_INDEX, userHandler.IndexHandler).Methods("GET")
 	httpServer.Router.HandleFunc(duser.API_LOGIN, userHandler.LoginHandler).Methods("GET")
 	httpServer.Router.HandleFunc(duser.API_AUTHENTICATE, userHandler.AuthenticateHandler).Methods("POST")
-	httpServer.Router.HandleFunc(duser.API_HELLO, jwtMiddleware.AuthJWTHandler(userHandler.HelloHandler, duser.API_LOGIN))
+	httpServer.Router.HandleFunc(duser.API_HELLO, jwtMiddleware.AuthJWTHandler(userHandler.HelloHandler, duser.API_LOGIN)).Methods("GET")
 
 	// OAuth2 API
 	// 리소스 서버에 인증하러 보내기
-	httpServer.Router.HandleFunc(API_OAUTH_LOGIN, oauthHandler.LoginHandler)
+	httpServer.Router.HandleFunc(API_OAUTH_LOGIN, oauthHandler.LoginHandler).Methods("GET")
 	// 리소스 서버에서 인증하기
-	httpServer.Router.HandleFunc(API_OAUTH_LOGIN_AUTHENTICATE, oauthHandler.AuthenticateHandler)
+	httpServer.Router.HandleFunc(API_OAUTH_LOGIN_AUTHENTICATE, oauthHandler.AuthenticateHandler).Methods("POST")
 	// 리소스 서버의 정보 인가하러 보내기
-	httpServer.Router.HandleFunc(API_OAUTH_LOGIN_ACCESS, oauthHandler.AccessHandler)
+	httpServer.Router.HandleFunc(API_OAUTH_LOGIN_ACCESS, oauthHandler.AccessHandler).Methods("GET")
 	// Authorization Code Grant Type
-	httpServer.Router.HandleFunc(API_OAUTH_AUTHORIZE, oauthHandler.GrantAuthorizeCodeHandler)
+	httpServer.Router.HandleFunc(API_OAUTH_AUTHORIZE, oauthHandler.GrantAuthorizeCodeHandler).Methods("POST", "GET")
 
 	// token request for all types of grant
 	// Client Credentials Grant comes here directly
 	// Client Server용 API
-	httpServer.Router.HandleFunc(API_OAUTH_TOKEN, oauthHandler.OAuthTokenHandler)
+	httpServer.Router.HandleFunc(API_OAUTH_TOKEN, oauthHandler.OAuthTokenHandler).Methods("POST", "GET")
 
 	// validate access token
-	httpServer.Router.HandleFunc(API_OAUTH_TOKEN_VALIDATE, oauthHandler.OAuthValidateTokenHandler)
+	httpServer.Router.HandleFunc(API_OAUTH_TOKEN_VALIDATE, oauthHandler.OAuthValidateTokenHandler).Methods("POST", "GET")
 
 	// client credential 저장
-	httpServer.Router.HandleFunc(API_OAUTH_CREDENTIALS, oauthHandler.CredentialHandler)
+	httpServer.Router.HandleFunc(API_OAUTH_CREDENTIALS, oauthHandler.CredentialHandler).Methods("PUT")
 
 	log.Printf("Server is running at %v.\n", addr)
 	log.Printf("Point your OAuth client Auth endpoint to %s%s", "http://"+addr, "/oauth/authorize")
