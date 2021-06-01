@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Index</title>
+    <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+    <script src="//code.jquery.com/jquery-2.2.4.min.js"></script>
+    <script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Login In</h1>
+        <form action="/authorize" method="POST">
+            <input type="text" class="form-control" name="client_id" value="222222">
+            <input type="text" class="form-control" name="code_challenge" value="Qn3Kywp0OiU4NK_AFzGPlmrcYJDJ13Abj_jdL08Ahg8%3D">
+            <input type="text" class="form-control" name="code_challenge_method" value="S256">
+            <input type="text" class="form-control" name="redirect_uri" value="http://localhost:9094/oauth2">
+            <input type="text" class="form-control" name="response_type" value="code">
+            <input type="text" class="form-control" name="scope" value="all">
+            <input type="text" class="form-control" name="state" value="xyz">
+            <button type="submit" class="btn btn-success">authorize</button>
+        </form>
+    </div>
+</body>
+
+</html>

@@ -18,6 +18,7 @@ require (
 	github.com/tidwall/buntdb v1.2.3 // indirect
 	github.com/tidwall/gjson v1.8.0 // indirect
 	golang.org/x/net v0.0.0-20210521195947-fe42d452be8f // indirect
+	golang.org/x/oauth2 v0.0.0-20210514164344-f6687ab2804c // indirect
 	golang.org/x/sys v0.0.0-20210601080250-7ecdf8ef093b // indirect
 	gopkg.in/oauth2.v3 v3.12.0 // indirect
 )

@@ -10,6 +10,8 @@ go get -u github.com/gorilla/handlers
 
 go get -u github.com/natefinch/lumberjack
 go get -u github.com/sirupsen/logrus
+
+go get golang.org/x/oauth2
 ```
 
 

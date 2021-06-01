@@ -1,6 +1,8 @@
 package commons
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"log"
 	"net/http"
@@ -148,4 +150,9 @@ func VerifyJWT(secret string, tokenStr string) (string, error) {
 
 	fmt.Println("claims:", claims.Audience, claims.Id, claims.Subject)
 	return claims.Audience, nil
+}
+
+func GenCodeChallengeS256(s string) string {
+	s256 := sha256.Sum256([]byte(s))
+	return base64.URLEncoding.EncodeToString(s256[:])
 }
