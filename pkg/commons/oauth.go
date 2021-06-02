@@ -29,7 +29,8 @@ func initClientStore() *store.ClientStore {
 func initManager(clientStore *store.ClientStore,
 	authCodeAccessTokenExp, authCodeRefreshTokenExp int, authCodeGenerateRefresh bool,
 	clientCredentialsAccessTokenExp, clientCredentialsRefreshTokenExp int, clientCredentialsGenerateRefresh bool,
-	tokenStoreFilePath string, jwtAccessToken bool, jwtSecret string) *manage.Manager {
+	tokenStoreFilePath string, jwtAccessToken bool, jwtSecret string,
+) *manage.Manager {
 
 	manager := manage.NewDefaultManager()
 	// manager.SetAuthorizeCodeTokenCfg(manage.DefaultAuthorizeCodeTokenCfg)
@@ -64,10 +65,11 @@ func initManager(clientStore *store.ClientStore,
 	return manager
 }
 
-func initServer(manager *manage.Manager) *server.Server {
+func initServer(manager *manage.Manager, allowedGrantType []oauth2.GrantType) *server.Server {
 	srv := server.NewDefaultServer(manager)
 	srv.Config.AllowGetAccessRequest = true
-	srv.SetAllowedGrantType(oauth2.AuthorizationCode, oauth2.ClientCredentials, oauth2.PasswordCredentials)
+	// srv.SetAllowedGrantType(oauth2.AuthorizationCode, oauth2.ClientCredentials, oauth2.PasswordCredentials)
+	srv.SetAllowedGrantType(allowedGrantType...)
 	return srv
 }
 
@@ -75,6 +77,7 @@ func NewOAuthServer(
 	authCodeAccessTokenExp, authCodeRefreshTokenExp int, authCodeGenerateRefresh bool,
 	clientCredentialsAccessTokenExp, clientCredentialsRefreshTokenExp int, clientCredentialsGenerateRefresh bool,
 	tokenStoreFilePath string, jwtAccessToken bool, jwtSecret string,
+	allowedGrantType []oauth2.GrantType,
 ) *OAuthServer {
 	clientStore := initClientStore()
 
@@ -84,7 +87,7 @@ func NewOAuthServer(
 		tokenStoreFilePath, jwtAccessToken, jwtSecret,
 	)
 
-	srv := initServer(manager)
+	srv := initServer(manager, allowedGrantType)
 	srv.SetInternalErrorHandler(defaultInternalErrorHandler)
 	srv.SetResponseErrorHandler(defaultResponseErrorHandler)
 	srv.SetPasswordAuthorizationHandler(defaultPasswordAuthorizationHandler)

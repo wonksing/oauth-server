@@ -121,6 +121,7 @@ func main() {
 	jwtSecret := conf.GetString("app.jwt_secret")
 	jwtExpiresSecond := conf.GetInt64("app.jwt_expires_second")
 
+	allowedGrantType := conf.GetString("oauth.allowed_grant_type")
 	remoteAuth := conf.GetBool("oauth.remote.authenticate")
 	remoteAuthURI := conf.GetString("oauth.remote.authenticate_uri")
 	remoteRedirectURI := conf.GetString("oauth.remote.redirect_uri")
@@ -147,9 +148,23 @@ func main() {
 	cc := conf.Sub("client_credentials")
 	ccSettings := cc.AllSettings()
 
+	allowedGrantTypeList := strings.Split(allowedGrantType, ",")
+	grantTypes := make([]oauth2.GrantType, 0)
+	for _, v := range allowedGrantTypeList {
+		if v == "authorization_code" {
+			grantTypes = append(grantTypes, oauth2.AuthorizationCode)
+		} else if v == "client_credentials" {
+			grantTypes = append(grantTypes, oauth2.ClientCredentials)
+		} else if v == "password" {
+			grantTypes = append(grantTypes, oauth2.PasswordCredentials)
+		} else if v == "refresh_token" {
+			grantTypes = append(grantTypes, oauth2.Refreshing)
+		}
+
+	}
 	oauthServer := commons.NewOAuthServer(authCodeAccessTokenExp, authCodeRefreshTokenExp, authCodeGenerateRefresh,
 		clientCredentialsAccessTokenExp, clientCredentialsRefreshTokenExp, clientCredentialsGenerateRefresh,
-		tokenStoreFilePath, jwtAccessToken, oAuthJwtSecret)
+		tokenStoreFilePath, jwtAccessToken, oAuthJwtSecret, grantTypes)
 	for _, val := range ccSettings {
 		v := val.(map[string]interface{})
 		id := v["id"].(string)

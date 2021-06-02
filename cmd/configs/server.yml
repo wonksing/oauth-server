@@ -3,6 +3,7 @@ app:
   jwt_expires_second: 360
 
 oauth:
+  allowed_grant_type: 'authorization_code,client_credentials,password,refresh_token'
   remote:
     authenticate: false
     authenticate_uri: 'http://localhost:9099/oauth/login'
