@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -28,6 +29,10 @@ import (
 )
 
 var (
+	Version         = "v1.1.10"
+	printVersion    = false
+	tickIntervalSec = 30
+
 	dumpvar bool
 	// idvar     string
 	// secretvar string
@@ -67,6 +72,10 @@ func init() {
 	flag.StringVar(&configFileName, "conf", "./configs/server.yml", "config file name")
 	flag.StringVar(&loggerFileName, "logger", "./configs/logger.yml", "logger config file name")
 	flag.BoolVar(&dumpvar, "d", true, "Dump requests and responses")
+
+	flag.BoolVar(&printVersion, "version", false, "print version")
+	flag.IntVar(&tickIntervalSec, "tick", 60, "tick interval in second")
+
 }
 
 func initLogger() {
@@ -134,7 +143,13 @@ func getAllowedGrantTypesFromConfig(grantTypeConf string) []oauth2.GrantType {
 }
 
 func main() {
+
 	flag.Parse()
+	if printVersion {
+		fmt.Printf("oauth-server version \"%v\"\n", Version)
+		return
+	}
+
 	if dumpvar {
 		log.Println("Dumping requests")
 	}
