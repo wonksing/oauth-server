@@ -17,13 +17,24 @@ type OAuthCookie interface {
 }
 
 type AuthRepo interface {
+	ClearClientReturnURI(w http.ResponseWriter)
+
 	SetClientReturnURI(w http.ResponseWriter, r *http.Request) error
+
+	ClearClientRedirectURI(w http.ResponseWriter)
+
 	SetClientRedirectURI(w http.ResponseWriter, r *http.Request) error
+
 	RedirectToClient(w http.ResponseWriter, r *http.Request) error
+
+	SetAccessToken(w http.ResponseWriter, accessToken string)
+
+	ClearAccessToken(w http.ResponseWriter)
 
 	GetUserID(r *http.Request) (string, error)
 	GetAuthStatus(r *http.Request) (string, error)
 	GetReturnURI(r *http.Request) (string, error)
+
 	RedirectToLogin(w http.ResponseWriter, r *http.Request) error
 	RedirectToAuthorize(w http.ResponseWriter, r *http.Request) error
 }

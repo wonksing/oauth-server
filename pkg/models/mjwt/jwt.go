@@ -13,7 +13,7 @@ import (
 type TokenClaim struct {
 	UsrID     string  `json:"usr_id,omitempty"`
 	Exp       float64 `json:"exp,omitempty"`
-	ReturnURI string  `json:return_uri,omitempty`
+	ReturnURI string  `json:"return_uri,omitempty"`
 }
 
 func NewTokenClaim(usrID string, exp float64, returnURI string) *TokenClaim {
