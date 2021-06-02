@@ -127,3 +127,40 @@ func IsAuthorized(authResources *AuthorizedResources, path, method string) (bool
 
 	return isAuthorized, nil
 }
+
+type OAuthClient struct {
+	// GetID() string
+	// GetSecret() string
+	// GetDomain() string
+	// GetUserID() string
+
+	ID     string
+	Secret string
+	Domain string
+	UserID string
+	Scope  string
+}
+type OAuthClientList []*OAuthClient
+
+func (c *OAuthClient) GetID() string {
+	return c.ID
+}
+
+// GetSecret client secret
+func (c *OAuthClient) GetSecret() string {
+	return c.Secret
+}
+
+// GetDomain client domain
+func (c *OAuthClient) GetDomain() string {
+	return c.Domain
+}
+
+// GetUserID user id
+func (c *OAuthClient) GetUserID() string {
+	return c.UserID
+}
+
+func (c *OAuthClient) GetScope() string {
+	return c.Scope
+}

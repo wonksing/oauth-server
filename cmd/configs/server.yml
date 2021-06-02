@@ -3,7 +3,8 @@ app:
   jwt_expires_second: 360
 
 oauth:
-  allowed_grant_type: 'authorization_code,client_credentials,password,refresh_token'
+  # allowed_grant_type: 'authorization_code,client_credentials,password,refresh_token'
+  allowed_grant_type: 'authorization_code'
   remote:
     authenticate: false
     authenticate_uri: 'http://localhost:9099/oauth/login'
@@ -39,12 +40,15 @@ client_credentials:
     id: '12345'
     secret: '12345678'
     domain: 'na'
+    scope: 'item:read emp:read'
   client2:
     id: 'abcde'
     secret: 'abcd1234'
     domain: 'localhost:8080'
+    scope: 'item:read'
   client3:
     id: '222222'
     secret: '22222222'
     domain: 'localhost:8080'
+    scope: 'emp:read'
 

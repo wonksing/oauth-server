@@ -15,6 +15,7 @@ import (
 	"github.com/go-oauth2/oauth2/v4/manage"
 	"github.com/go-oauth2/oauth2/v4/server"
 	"github.com/go-oauth2/oauth2/v4/store"
+	"github.com/wonksing/oauth-server/pkg/models/moauth"
 )
 
 type OAuthServer struct {
@@ -23,8 +24,12 @@ type OAuthServer struct {
 	Srv         *server.Server
 }
 
-func initClientStore() *store.ClientStore {
-	return store.NewClientStore()
+func initClientStore(clientCredentials moauth.OAuthClientList) *store.ClientStore {
+	cs := store.NewClientStore()
+	for _, val := range clientCredentials {
+		cs.Set(val.ID, val)
+	}
+	return cs
 }
 func initManager(clientStore *store.ClientStore,
 	authCodeAccessTokenExp, authCodeRefreshTokenExp int, authCodeGenerateRefresh bool,
@@ -78,8 +83,9 @@ func NewOAuthServer(
 	clientCredentialsAccessTokenExp, clientCredentialsRefreshTokenExp int, clientCredentialsGenerateRefresh bool,
 	tokenStoreFilePath string, jwtAccessToken bool, jwtSecret string,
 	allowedGrantType []oauth2.GrantType,
+	clientCredentials moauth.OAuthClientList,
 ) *OAuthServer {
-	clientStore := initClientStore()
+	clientStore := initClientStore(clientCredentials)
 
 	manager := initManager(clientStore,
 		authCodeAccessTokenExp, authCodeRefreshTokenExp, authCodeGenerateRefresh,
