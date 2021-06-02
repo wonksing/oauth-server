@@ -46,20 +46,21 @@ var (
 	ErrorUserDidNotAllow = NewOAuthError("2003", "사용자가 권한 사용을 거절하였습니다", http.StatusBadRequest, http.StatusText(http.StatusBadRequest)).(*OAuthError)
 
 	// client validation
-	ErrorNotAllowedClientScop   = NewOAuthError("3001", "client scope is not allowed", http.StatusBadRequest, http.StatusText(http.StatusBadRequest)).(*OAuthError)
-	ErrorNoAllowedResource      = NewOAuthError("3002", "no authorized resources", http.StatusBadRequest, http.StatusText(http.StatusBadRequest)).(*OAuthError)
-	ErrorNoResourceToAccess     = NewOAuthError("3003", "no resource to access", http.StatusBadRequest, http.StatusText(http.StatusBadRequest)).(*OAuthError)
-	ErrorNoClientID             = NewOAuthError("3004", "cannot find client id", http.StatusBadRequest, http.StatusText(http.StatusBadRequest)).(*OAuthError)
-	ErrorNoRedirectURI          = NewOAuthError("3005", "cannot find redirect uri", http.StatusBadRequest, http.StatusText(http.StatusBadRequest)).(*OAuthError)
-	ErrorNoReturnURI            = NewOAuthError("3006", "cannot find return uri", http.StatusBadRequest, http.StatusText(http.StatusBadRequest)).(*OAuthError)
-	ErrorInsufficientClientInfo = NewOAuthError("3007", "requested client info is insufficient", http.StatusBadRequest, http.StatusText(http.StatusBadRequest)).(*OAuthError)
+	ErrorNotAllowedRequestedScope = NewOAuthError("3001", "requested scope is not allowed", http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized)).(*OAuthError)
+	ErrorNoAllowedResource        = NewOAuthError("3002", "no authorized resources", http.StatusBadRequest, http.StatusText(http.StatusBadRequest)).(*OAuthError)
+	ErrorNoResourceToAccess       = NewOAuthError("3003", "no resource to access", http.StatusBadRequest, http.StatusText(http.StatusBadRequest)).(*OAuthError)
+	ErrorNoClientID               = NewOAuthError("3004", "cannot find client id", http.StatusBadRequest, http.StatusText(http.StatusBadRequest)).(*OAuthError)
+	ErrorNoRedirectURI            = NewOAuthError("3005", "cannot find redirect uri", http.StatusBadRequest, http.StatusText(http.StatusBadRequest)).(*OAuthError)
+	ErrorNoReturnURI              = NewOAuthError("3006", "cannot find return uri", http.StatusBadRequest, http.StatusText(http.StatusBadRequest)).(*OAuthError)
+	ErrorInsufficientClientInfo   = NewOAuthError("3007", "requested client info is insufficient", http.StatusBadRequest, http.StatusText(http.StatusBadRequest)).(*OAuthError)
+	ErrorNoAllowedScope           = NewOAuthError("3008", "no scope allowed", http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized)).(*OAuthError)
 )
 
 func HttpRespond(w http.ResponseWriter, status int, err error) {
 	w.WriteHeader(status)
-	switch err.(type) {
+	switch err := err.(type) {
 	case *OAuthError:
-		data := err.(*OAuthError).ResponseData()
+		data := err.ResponseData()
 		json.NewEncoder(w).Encode(data)
 	default:
 		data := make(map[string]interface{})
