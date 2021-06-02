@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,20 +19,20 @@ import (
 	"github.com/wonksing/oauth-server/pkg/adaptors/repositories"
 	"github.com/wonksing/oauth-server/pkg/adaptors/views"
 	"github.com/wonksing/oauth-server/pkg/commons"
-	"github.com/wonksing/oauth-server/pkg/deliveries/dmiddleware"
 	"github.com/wonksing/oauth-server/pkg/deliveries/doauth"
-	"github.com/wonksing/oauth-server/pkg/deliveries/duser"
-	"github.com/wonksing/oauth-server/pkg/models/merror"
 	"github.com/wonksing/oauth-server/pkg/models/moauth"
 	"github.com/wonksing/oauth-server/pkg/port"
 	"github.com/wonksing/oauth-server/pkg/usecases/uoauth"
 
 	"github.com/go-oauth2/oauth2/v4"
-	"github.com/go-oauth2/oauth2/v4/models"
 	log "github.com/sirupsen/logrus"
 )
 
 var (
+	Version         = "v1.1.10"
+	printVersion    = false
+	tickIntervalSec = 30
+
 	dumpvar bool
 	// idvar     string
 	// secretvar string
@@ -71,6 +72,10 @@ func init() {
 	flag.StringVar(&configFileName, "conf", "./configs/server.yml", "config file name")
 	flag.StringVar(&loggerFileName, "logger", "./configs/logger.yml", "logger config file name")
 	flag.BoolVar(&dumpvar, "d", true, "Dump requests and responses")
+
+	flag.BoolVar(&printVersion, "version", false, "print version")
+	flag.IntVar(&tickIntervalSec, "tick", 60, "tick interval in second")
+
 }
 
 func initLogger() {
@@ -101,8 +106,50 @@ func initLogger() {
 
 }
 
+func getClientCredentialsFromConfig(clientCredentialMap map[string]interface{}) moauth.OAuthClientList {
+	list := make(moauth.OAuthClientList, 0)
+	for _, val := range clientCredentialMap {
+		v := val.(map[string]interface{})
+		id := v["id"].(string)
+		secret := v["secret"].(string)
+		domain := v["domain"].(string)
+		scope := v["scope"].(string)
+		list = append(list, &moauth.OAuthClient{
+			ID:     id,
+			Secret: secret,
+			Domain: domain,
+			Scope:  scope,
+		})
+	}
+	return list
+}
+
+func getAllowedGrantTypesFromConfig(grantTypeConf string) []oauth2.GrantType {
+	allowedGrantTypeList := strings.Split(grantTypeConf, ",")
+	grantTypes := make([]oauth2.GrantType, 0)
+	for _, v := range allowedGrantTypeList {
+		if v == "authorization_code" {
+			grantTypes = append(grantTypes, oauth2.AuthorizationCode)
+		} else if v == "client_credentials" {
+			grantTypes = append(grantTypes, oauth2.ClientCredentials)
+		} else if v == "password" {
+			grantTypes = append(grantTypes, oauth2.PasswordCredentials)
+		} else if v == "refresh_token" {
+			grantTypes = append(grantTypes, oauth2.Refreshing)
+		}
+
+	}
+	return grantTypes
+}
+
 func main() {
+
 	flag.Parse()
+	if printVersion {
+		fmt.Printf("oauth-server version \"%v\"\n", Version)
+		return
+	}
+
 	if dumpvar {
 		log.Println("Dumping requests")
 	}
@@ -121,6 +168,7 @@ func main() {
 	jwtSecret := conf.GetString("app.jwt_secret")
 	jwtExpiresSecond := conf.GetInt64("app.jwt_expires_second")
 
+	allowedGrantType := conf.GetString("oauth.allowed_grant_type")
 	remoteAuth := conf.GetBool("oauth.remote.authenticate")
 	remoteAuthURI := conf.GetString("oauth.remote.authenticate_uri")
 	remoteRedirectURI := conf.GetString("oauth.remote.redirect_uri")
@@ -145,22 +193,16 @@ func main() {
 	tokenStoreFilePath := conf.GetString("token_store.file.path")
 
 	cc := conf.Sub("client_credentials")
-	ccSettings := cc.AllSettings()
+	clientCredentialMap := cc.AllSettings()
 
-	oauthServer := commons.NewOAuthServer(authCodeAccessTokenExp, authCodeRefreshTokenExp, authCodeGenerateRefresh,
+	grantTypes := getAllowedGrantTypesFromConfig(allowedGrantType)
+	clientCredentials := getClientCredentialsFromConfig(clientCredentialMap)
+
+	oauthServer := commons.NewOAuthServer(
+		authCodeAccessTokenExp, authCodeRefreshTokenExp, authCodeGenerateRefresh,
 		clientCredentialsAccessTokenExp, clientCredentialsRefreshTokenExp, clientCredentialsGenerateRefresh,
-		tokenStoreFilePath, jwtAccessToken, oAuthJwtSecret)
-	for _, val := range ccSettings {
-		v := val.(map[string]interface{})
-		id := v["id"].(string)
-		secret := v["secret"].(string)
-		domain := v["domain"].(string)
-		oauthServer.ClientStore.Set(id, &models.Client{
-			ID:     id,
-			Secret: secret,
-			Domain: domain,
-		})
-	}
+		tokenStoreFilePath, jwtAccessToken, oAuthJwtSecret, grantTypes, clientCredentials,
+	)
 
 	// TODO Scope 모델 정의
 	mapScopes := make(map[string]string)
@@ -171,14 +213,18 @@ func main() {
 	mapScopes["emp"] = "/emp,/emp/new,/emp/_add"
 
 	oauthServer.Srv.SetResponseErrorHandler(func(re *oauthErrors.Response) {
+		// 오류 응답은 다음과 같은 json 포맷으로 통일하도록 하자
+		// {"error":"unauthorized_client","error_description":"The client is not authorized to request an authorization code using this method"}
 		log.WithFields(commons.LogrusFields()).Error(re.Error)
-		if re.Error == merror.ErrorNotAllowedScop {
-			re.StatusCode = http.StatusUnauthorized
-			re.Description = http.StatusText(http.StatusUnauthorized)
-		}
+		// if re.Error == merror.ErrorNotAllowedScop {
+		// 	re.StatusCode = http.StatusUnauthorized
+		// 	re.Description = http.StatusText(http.StatusUnauthorized)
+		// }
 	})
 	oauthServer.Srv.SetAuthorizeScopeHandler(func(w http.ResponseWriter, r *http.Request) (scope string, err error) {
-		// authorization code grant type일때 범위
+		// authorization code 를 요청할 때, 요청 파라메터의 client_id와 scope를 이용해서
+		// 허용된 scope을 구해야 한다.
+
 		// scope = "item:new:read"
 
 		if r.Form == nil {
@@ -188,7 +234,7 @@ func main() {
 		return
 	})
 	oauthServer.Srv.SetClientScopeHandler(func(tgr *oauth2.TokenGenerateRequest) (allowed bool, err error) {
-		// client credential grant type일때 범위
+		// 모든 Grant Type을 통해 Token을 요청할 때,
 
 		// _, scope, err := moauth.GetAuthResources(mapScopes, tgr.Scope)
 		// if err != nil {
@@ -255,17 +301,15 @@ func main() {
 	)
 	resRepo := repositories.NewOAuthUserRepo()
 
-	oauthUsc := uoauth.NewOAuthUsecase(oauthServer, jwtSecret, jwtExpiresSecond,
-		oauthCookie, authRepo, authView, resRepo,
+	oauthUsc := uoauth.NewOAuthUsecase(
+		oauthServer,
+		jwtSecret, jwtExpiresSecond,
+		authRepo, authView, resRepo,
 	)
 
 	oauthHandler := doauth.NewOAuthHandler(oauthUsc)
-	userHandler := duser.NewHttpUserHandler(jwtSecret, jwtExpiresSecond)
-	jwtMiddleware := dmiddleware.NewJWTMiddleware(jwtSecret, moauth.KeyAccessToken, oauthUsc)
+	// jwtMiddleware := dmiddleware.NewJWTMiddleware(jwtSecret, moauth.KeyAccessToken, oauthUsc)
 	httpServer := commons.NewHttpServer(addr, wt, rt, cert, certKey, nil, nil, nil)
-
-	// 테스트용 API
-	restapis.RegisterTestAPIs(httpServer.Router, jwtMiddleware, userHandler)
 
 	// OAuth2 API
 	restapis.RegisterOAuthAPIs(httpServer.Router, oauthHandler)
@@ -281,7 +325,6 @@ func main() {
 		log.WithFields(commons.LogrusFields()).Error(err)
 	}
 
-	// ticker.Stop()
 }
 
 func startSyscallChecker(httpServer *commons.HttpServer) {

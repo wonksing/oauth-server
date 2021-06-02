@@ -2,7 +2,6 @@ package moauth
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"github.com/wonksing/oauth-server/pkg/models/merror"
@@ -61,7 +60,7 @@ type Action struct {
 
 func GetAuthResources(mapScopes map[string]string, clientScope string) (*AuthorizedResources, string, error) {
 	if clientScope == "" {
-		return nil, "", merror.ErrorNotAllowedScop
+		return nil, "", merror.ErrorNotAllowedClientScop
 	}
 
 	allowed := ""
@@ -104,10 +103,10 @@ func GetAuthResources(mapScopes map[string]string, clientScope string) (*Authori
 
 func IsAuthorized(authResources *AuthorizedResources, path, method string) (bool, error) {
 	if authResources == nil {
-		return false, errors.New("no authorized resources")
+		return false, merror.ErrorNoAllowedResource
 	}
 	if path == "" {
-		return false, errors.New("no path")
+		return false, merror.ErrorNoResourceToAccess
 	}
 
 	isAuthorized := false
@@ -126,4 +125,41 @@ func IsAuthorized(authResources *AuthorizedResources, path, method string) (bool
 	}
 
 	return isAuthorized, nil
+}
+
+type OAuthClient struct {
+	// GetID() string
+	// GetSecret() string
+	// GetDomain() string
+	// GetUserID() string
+
+	ID     string
+	Secret string
+	Domain string
+	UserID string
+	Scope  string
+}
+type OAuthClientList []*OAuthClient
+
+func (c *OAuthClient) GetID() string {
+	return c.ID
+}
+
+// GetSecret client secret
+func (c *OAuthClient) GetSecret() string {
+	return c.Secret
+}
+
+// GetDomain client domain
+func (c *OAuthClient) GetDomain() string {
+	return c.Domain
+}
+
+// GetUserID user id
+func (c *OAuthClient) GetUserID() string {
+	return c.UserID
+}
+
+func (c *OAuthClient) GetScope() string {
+	return c.Scope
 }

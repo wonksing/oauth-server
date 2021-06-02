@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/wonksing/oauth-server/pkg/commons"
+	"github.com/wonksing/oauth-server/pkg/models/merror"
 	"github.com/wonksing/oauth-server/pkg/usecases/uoauth"
 )
 
@@ -26,7 +27,7 @@ func (h *OAuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	err := h.oauthUsc.Login(w, r)
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		merror.HttpRespond(w, http.StatusInternalServerError, err)
 		return
 	}
 }
@@ -38,13 +39,13 @@ func (h *OAuthHandler) AuthenticateHandler(w http.ResponseWriter, r *http.Reques
 
 	err := h.oauthUsc.Authenticate(w, r)
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		merror.HttpRespond(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	err = h.oauthUsc.RedirectToAuthorize(w, r)
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		merror.HttpRespond(w, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -56,7 +57,7 @@ func (h *OAuthHandler) AccessHandler(w http.ResponseWriter, r *http.Request) {
 
 	err := h.oauthUsc.Authorize(w, r)
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		merror.HttpRespond(w, http.StatusInternalServerError, err)
 		return
 	}
 }
@@ -68,7 +69,8 @@ func (h *OAuthHandler) GrantAuthorizeCodeHandler(w http.ResponseWriter, r *http.
 
 	err := h.oauthUsc.GrantAuthorizeCode(w, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		merror.HttpRespond(w, http.StatusInternalServerError, err)
+		// http.Error(w, err.Error(), http.StatusBadRequest)
 	}
 }
 
@@ -77,7 +79,7 @@ func (h *OAuthHandler) OAuthTokenHandler(w http.ResponseWriter, r *http.Request)
 
 	err := h.oauthUsc.RequestToken(w, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		merror.HttpRespond(w, http.StatusInternalServerError, err)
 	}
 }
 
@@ -86,7 +88,7 @@ func (h *OAuthHandler) OAuthValidateTokenHandler(w http.ResponseWriter, r *http.
 
 	data, err := h.oauthUsc.VerifyToken(w, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		merror.HttpRespond(w, http.StatusInternalServerError, err)
 		return
 	}
 	e := json.NewEncoder(w)
@@ -99,10 +101,11 @@ func (h *OAuthHandler) CredentialHandler(w http.ResponseWriter, r *http.Request)
 	clientID := r.FormValue("client_id")
 	clientSecret := r.FormValue("client_secret")
 	clientDomain := r.FormValue("client_domain")
+	clientScope := r.FormValue("client_scope")
 
-	data, err := h.oauthUsc.AddClientCredential(clientID, clientSecret, clientDomain)
+	data, err := h.oauthUsc.AddClientCredential(clientID, clientSecret, clientDomain, clientScope)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		merror.HttpRespond(w, http.StatusInternalServerError, err)
 		return
 	}
 	e := json.NewEncoder(w)

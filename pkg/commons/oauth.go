@@ -15,6 +15,7 @@ import (
 	"github.com/go-oauth2/oauth2/v4/manage"
 	"github.com/go-oauth2/oauth2/v4/server"
 	"github.com/go-oauth2/oauth2/v4/store"
+	"github.com/wonksing/oauth-server/pkg/models/moauth"
 )
 
 type OAuthServer struct {
@@ -23,13 +24,18 @@ type OAuthServer struct {
 	Srv         *server.Server
 }
 
-func initClientStore() *store.ClientStore {
-	return store.NewClientStore()
+func initClientStore(clientCredentials moauth.OAuthClientList) *store.ClientStore {
+	cs := store.NewClientStore()
+	for _, val := range clientCredentials {
+		cs.Set(val.ID, val)
+	}
+	return cs
 }
 func initManager(clientStore *store.ClientStore,
 	authCodeAccessTokenExp, authCodeRefreshTokenExp int, authCodeGenerateRefresh bool,
 	clientCredentialsAccessTokenExp, clientCredentialsRefreshTokenExp int, clientCredentialsGenerateRefresh bool,
-	tokenStoreFilePath string, jwtAccessToken bool, jwtSecret string) *manage.Manager {
+	tokenStoreFilePath string, jwtAccessToken bool, jwtSecret string,
+) *manage.Manager {
 
 	manager := manage.NewDefaultManager()
 	// manager.SetAuthorizeCodeTokenCfg(manage.DefaultAuthorizeCodeTokenCfg)
@@ -64,10 +70,11 @@ func initManager(clientStore *store.ClientStore,
 	return manager
 }
 
-func initServer(manager *manage.Manager) *server.Server {
+func initServer(manager *manage.Manager, allowedGrantType []oauth2.GrantType) *server.Server {
 	srv := server.NewDefaultServer(manager)
 	srv.Config.AllowGetAccessRequest = true
-	srv.SetAllowedGrantType(oauth2.AuthorizationCode, oauth2.ClientCredentials, oauth2.PasswordCredentials)
+	// srv.SetAllowedGrantType(oauth2.AuthorizationCode, oauth2.ClientCredentials, oauth2.PasswordCredentials)
+	srv.SetAllowedGrantType(allowedGrantType...)
 	return srv
 }
 
@@ -75,8 +82,10 @@ func NewOAuthServer(
 	authCodeAccessTokenExp, authCodeRefreshTokenExp int, authCodeGenerateRefresh bool,
 	clientCredentialsAccessTokenExp, clientCredentialsRefreshTokenExp int, clientCredentialsGenerateRefresh bool,
 	tokenStoreFilePath string, jwtAccessToken bool, jwtSecret string,
+	allowedGrantType []oauth2.GrantType,
+	clientCredentials moauth.OAuthClientList,
 ) *OAuthServer {
-	clientStore := initClientStore()
+	clientStore := initClientStore(clientCredentials)
 
 	manager := initManager(clientStore,
 		authCodeAccessTokenExp, authCodeRefreshTokenExp, authCodeGenerateRefresh,
@@ -84,7 +93,7 @@ func NewOAuthServer(
 		tokenStoreFilePath, jwtAccessToken, jwtSecret,
 	)
 
-	srv := initServer(manager)
+	srv := initServer(manager, allowedGrantType)
 	srv.SetInternalErrorHandler(defaultInternalErrorHandler)
 	srv.SetResponseErrorHandler(defaultResponseErrorHandler)
 	srv.SetPasswordAuthorizationHandler(defaultPasswordAuthorizationHandler)
