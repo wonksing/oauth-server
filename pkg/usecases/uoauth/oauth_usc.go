@@ -29,6 +29,7 @@ type Usecase interface {
 	// RedirectToLogin 로그인 페이지로 보낸다
 	RedirectToLogin(w http.ResponseWriter, r *http.Request) error
 
+	VerifyUserIDPW(userID, userPW string) (string, error)
 	// Authenticate 사용자 인증
 	// 사용자의 ID와 PW 검사, return uri 유무 확인 후 이상 없으면
 	// access token을 생성하여 쿠키에 저장하고 인가 페이지로 보낸다.
@@ -119,7 +120,9 @@ func (u *oauthUsecase) RedirectToLogin(w http.ResponseWriter, r *http.Request) e
 
 	return u.authRepo.RedirectToLogin(w, r)
 }
-
+func (u *oauthUsecase) VerifyUserIDPW(userID, userPW string) (string, error) {
+	return u.resRepo.VerifyUserIDPW(userID, userPW)
+}
 func (u *oauthUsecase) Authenticate(w http.ResponseWriter, r *http.Request) error {
 	if r.Form == nil {
 		r.ParseForm()
@@ -127,7 +130,7 @@ func (u *oauthUsecase) Authenticate(w http.ResponseWriter, r *http.Request) erro
 
 	userID := r.Form.Get("username")
 	userPW := r.Form.Get("password")
-	err := u.resRepo.Authenticate(userID, userPW)
+	_, err := u.resRepo.VerifyUserIDPW(userID, userPW)
 	if err != nil {
 		return err
 	}

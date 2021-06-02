@@ -45,5 +45,5 @@ type AuthView interface {
 }
 
 type ResourceRepo interface {
-	Authenticate(userID, userPW string) error
+	VerifyUserIDPW(userID, userPW string) (string, error)
 }

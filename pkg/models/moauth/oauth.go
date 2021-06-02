@@ -2,7 +2,9 @@ package moauth
 
 import (
 	"context"
+	"errors"
 	"strings"
+	"sync"
 
 	"github.com/wonksing/oauth-server/pkg/models/merror"
 )
@@ -46,93 +48,82 @@ func WithAllowStatusContext(ctx context.Context, status string) context.Context 
 	return context.WithValue(ctx, OAuthAllowStatus{}, status)
 }
 
+type OAuthScope struct {
+	sync.RWMutex
+	data map[string]AuthorizedResources
+}
+
+func NewOAuthScope() *OAuthScope {
+	return &OAuthScope{
+		data: make(map[string]AuthorizedResources),
+	}
+}
+
+func (s *OAuthScope) Get(scope string) (AuthorizedResources, error) {
+	s.RLock()
+	defer s.RUnlock()
+
+	if ar, ok := s.data[scope]; ok {
+		return ar, nil
+	}
+	return nil, errors.New("scope not found")
+}
+
+func (s *OAuthScope) Set(scope string, ar AuthorizedResources) error {
+	s.Lock()
+	defer s.Unlock()
+	s.data[scope] = ar
+	return nil
+}
+
+func (s *OAuthScope) PickAllowedScope(clientScope string) string {
+	s.RLock()
+	defer s.RUnlock()
+
+	allowedScope := ""
+	clientScopeList := strings.Split(clientScope, " ")
+	for _, scope := range clientScopeList {
+		if _, ok := s.data[scope]; ok {
+			allowedScope += scope + " "
+		}
+	}
+
+	return allowedScope
+}
+
+func (s *OAuthScope) FilterScope(allowed, requested string) (string, error) {
+	if allowed == "" {
+		return "", merror.ErrorNoAllowedScope
+	}
+	allowedScopeList := strings.Split(allowed, " ")
+
+	if requested == "" {
+		requested = allowed
+	}
+	requestedScopeList := strings.Split(requested, " ")
+	matchedScope := ""
+	for _, rs := range requestedScopeList {
+		for _, as := range allowedScopeList {
+			if rs == as {
+				matchedScope += rs + " "
+				break
+			}
+		}
+	}
+	matchedScope = strings.TrimSpace(matchedScope)
+	return matchedScope, nil
+}
+
 type AuthorizedResource struct {
 	Path   string
-	Action Action
-}
-type AuthorizedResources []AuthorizedResource
-type Action struct {
 	Get    bool
 	Post   bool
 	Put    bool
 	Delete bool
 }
-
-func GetAuthResources(mapScopes map[string]string, clientScope string) (*AuthorizedResources, string, error) {
-	if clientScope == "" {
-		return nil, "", merror.ErrorNotAllowedClientScop
-	}
-
-	allowed := ""
-	found := false
-	cs := strings.Split(clientScope, " ")
-	var authResources AuthorizedResources
-	for _, val := range cs {
-		tmp := strings.Split(val, ":")
-		tmpAct := Action{}
-		if len(tmp) == 1 {
-			tmpAct.Get = true
-			tmpAct.Post = true
-			tmpAct.Put = true
-			tmpAct.Delete = true
-		} else {
-			switch tmp[1] {
-			case "read":
-				tmpAct.Get = true
-			case "update":
-				tmpAct.Post = true
-			case "write":
-				tmpAct.Put = true
-			case "delete":
-				tmpAct.Delete = true
-			}
-		}
-		resources := strings.Split(mapScopes[tmp[0]], ",")
-		found = false
-		for _, res := range resources {
-			authResources = append(authResources, AuthorizedResource{res, tmpAct})
-			found = true
-		}
-		if found {
-			allowed += val + " "
-		}
-	}
-
-	return &authResources, strings.TrimSpace(allowed), nil
-}
-
-func IsAuthorized(authResources *AuthorizedResources, path, method string) (bool, error) {
-	if authResources == nil {
-		return false, merror.ErrorNoAllowedResource
-	}
-	if path == "" {
-		return false, merror.ErrorNoResourceToAccess
-	}
-
-	isAuthorized := false
-	for _, res := range *authResources {
-		if path == res.Path {
-			if method == "GET" && res.Action.Get {
-				isAuthorized = true
-			} else if method == "POST" && res.Action.Post {
-				isAuthorized = true
-			} else if method == "PUT" && res.Action.Put {
-				isAuthorized = true
-			} else if method == "DELETE" && res.Action.Delete {
-				isAuthorized = true
-			}
-		}
-	}
-
-	return isAuthorized, nil
-}
+type AuthorizedResources []AuthorizedResource
 
 type OAuthClient struct {
-	// GetID() string
-	// GetSecret() string
-	// GetDomain() string
-	// GetUserID() string
-
 	ID     string
 	Secret string
 	Domain string
