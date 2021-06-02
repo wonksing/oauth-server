@@ -18,9 +18,7 @@ import (
 	"github.com/wonksing/oauth-server/pkg/adaptors/repositories"
 	"github.com/wonksing/oauth-server/pkg/adaptors/views"
 	"github.com/wonksing/oauth-server/pkg/commons"
-	"github.com/wonksing/oauth-server/pkg/deliveries/dmiddleware"
 	"github.com/wonksing/oauth-server/pkg/deliveries/doauth"
-	"github.com/wonksing/oauth-server/pkg/deliveries/duser"
 	"github.com/wonksing/oauth-server/pkg/models/moauth"
 	"github.com/wonksing/oauth-server/pkg/port"
 	"github.com/wonksing/oauth-server/pkg/usecases/uoauth"
@@ -295,12 +293,8 @@ func main() {
 	)
 
 	oauthHandler := doauth.NewOAuthHandler(oauthUsc)
-	userHandler := duser.NewHttpUserHandler(jwtSecret, jwtExpiresSecond)
-	jwtMiddleware := dmiddleware.NewJWTMiddleware(jwtSecret, moauth.KeyAccessToken, oauthUsc)
+	// jwtMiddleware := dmiddleware.NewJWTMiddleware(jwtSecret, moauth.KeyAccessToken, oauthUsc)
 	httpServer := commons.NewHttpServer(addr, wt, rt, cert, certKey, nil, nil, nil)
-
-	// 테스트용 API
-	restapis.RegisterTestAPIs(httpServer.Router, jwtMiddleware, userHandler)
 
 	// OAuth2 API
 	restapis.RegisterOAuthAPIs(httpServer.Router, oauthHandler)

@@ -36,12 +36,6 @@ func authJWT(r *http.Request, secretKey, accessTokenKey string) (*mjwt.TokenClai
 
 	if err != nil || claim == nil {
 		return nil, errors.New(http.StatusText(http.StatusUnauthorized))
-
-		// if expired {
-		// 	// refresh logic...
-		// }
-		// http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-		// return errors.New(http.StatusText(http.StatusUnauthorized))
 	}
 
 	return claim, nil
@@ -53,17 +47,6 @@ func (m *JWTMiddleware) AuthJWTHandler(next http.HandlerFunc, redirectUriOnFail 
 
 		claim, err := authJWT(r, m.jwtSecret, m.accessTokenKey)
 		if err != nil {
-			// if redirectUriOnFail == "/oauth/login" {
-			// 	if r.Form == nil {
-			// 		r.ParseForm()
-			// 	}
-			// 	commons.SetCookie(w, "oauth_return_uri", r.Form.Encode(), time.Duration(24*365))
-
-			// }
-			// commons.SetCookie(w, "access_token", "", time.Duration(24*365))
-
-			// m.oauthUsc.ClearOAuthUserCookie(w)
-
 			commons.Redirect(w, redirectUriOnFail)
 			return
 		}
