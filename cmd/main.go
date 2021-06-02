@@ -288,8 +288,10 @@ func main() {
 	)
 	resRepo := repositories.NewOAuthUserRepo()
 
-	oauthUsc := uoauth.NewOAuthUsecase(oauthServer, jwtSecret, jwtExpiresSecond,
-		oauthCookie, authRepo, authView, resRepo,
+	oauthUsc := uoauth.NewOAuthUsecase(
+		oauthServer,
+		jwtSecret, jwtExpiresSecond,
+		authRepo, authView, resRepo,
 	)
 
 	oauthHandler := doauth.NewOAuthHandler(oauthUsc)
@@ -314,7 +316,6 @@ func main() {
 		log.WithFields(commons.LogrusFields()).Error(err)
 	}
 
-	// ticker.Stop()
 }
 
 func startSyscallChecker(httpServer *commons.HttpServer) {
