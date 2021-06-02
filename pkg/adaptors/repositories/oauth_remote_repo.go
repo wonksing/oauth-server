@@ -2,7 +2,6 @@ package repositories
 
 import (
 	"bytes"
-	"errors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -33,6 +32,10 @@ func NewOAuthRemoteRepo(oauthCookie port.OAuthCookie, jwtSecret string, jwtExpir
 	}
 }
 
+func (repo *OAuthRemoteRepo) ClearClientReturnURI(w http.ResponseWriter) {
+	repo.oauthCookie.ClearReturnURI(w)
+}
+
 func (repo *OAuthRemoteRepo) SetClientReturnURI(w http.ResponseWriter, r *http.Request) error {
 	clientID := r.Form.Get("client_id")
 	redirectURI := r.Form.Get("redirect_uri")
@@ -40,17 +43,28 @@ func (repo *OAuthRemoteRepo) SetClientReturnURI(w http.ResponseWriter, r *http.R
 		repo.oauthCookie.WriteReturnURI(w, r.Form.Encode())
 	} else {
 		repo.oauthCookie.ClearReturnURI(w)
-		return errors.New("client id and redirect uri do not exist")
+		if clientID == "" {
+			return merror.ErrorNoClientID
+		}
+		if redirectURI == "" {
+			return merror.ErrorNoRedirectURI
+		}
+
+		return merror.ErrorInsufficientClientInfo
 	}
 
 	return nil
+}
+
+func (repo *OAuthRemoteRepo) ClearClientRedirectURI(w http.ResponseWriter) {
+	repo.oauthCookie.ClearRedirectURI(w)
 }
 
 func (repo *OAuthRemoteRepo) SetClientRedirectURI(w http.ResponseWriter, r *http.Request) error {
 	redirectURI := r.Form.Get("redirect_uri")
 	if redirectURI == "" {
 		repo.oauthCookie.ClearRedirectURI(w)
-		return errors.New("redirect uri does not exist")
+		return merror.ErrorNoRedirectURI
 	}
 	repo.oauthCookie.WriteRedirectURI(w, redirectURI)
 
@@ -68,11 +82,19 @@ func (repo *OAuthRemoteRepo) RedirectToClient(w http.ResponseWriter, r *http.Req
 	}
 
 	if redirectURI == "" {
-		return errors.New("no client to redirect")
+		return merror.ErrorNoRedirectURI
 	}
 
 	commons.Redirect(w, redirectURI)
 	return nil
+}
+
+func (repo *OAuthRemoteRepo) SetAccessToken(w http.ResponseWriter, accessToken string) {
+	repo.oauthCookie.WriteAccessToken(w, accessToken)
+}
+
+func (repo *OAuthRemoteRepo) ClearAccessToken(w http.ResponseWriter) {
+	repo.oauthCookie.ClearAccessToken(w)
 }
 
 func (repo *OAuthRemoteRepo) GetUserID(r *http.Request) (string, error) {
@@ -100,14 +122,14 @@ func (repo *OAuthRemoteRepo) GetReturnURI(r *http.Request) (string, error) {
 	token := r.Form.Get("token")
 	claim, _, err := mjwt.ValidateAccessToken(token, repo.jwtSecret)
 	if err != nil {
-		return "", errors.New("return_uri not found")
+		return "", merror.ErrorNoReturnURI
 	}
 	if claim.ReturnURI == "" {
-		return "", errors.New("return_uri not found")
+		return "", merror.ErrorNoReturnURI
 	}
 	r.Form, err = url.ParseQuery(claim.ReturnURI)
 	if err != nil {
-		return "", errors.New("return_uri not found")
+		return "", merror.ErrorNoReturnURI
 	}
 	// repo.oauthCookie.WriteReturnURI(w, r.Form.Encode())
 	// return repo.oauthCookie.ReadReturnURI(r)

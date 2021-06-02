@@ -1,13 +1,11 @@
 package uoauth
 
 import (
-	"errors"
 	"net/http"
 	"net/url"
 	"os"
 	"time"
 
-	"github.com/go-oauth2/oauth2/models"
 	"github.com/wonksing/oauth-server/pkg/commons"
 	"github.com/wonksing/oauth-server/pkg/models/merror"
 	"github.com/wonksing/oauth-server/pkg/models/mjwt"
@@ -50,7 +48,7 @@ type Usecase interface {
 	VerifyToken(w http.ResponseWriter, r *http.Request) (map[string]interface{}, error)
 
 	// AddClientCredential 새로운 클라이언트를 추가한다.
-	AddClientCredential(clientID, clientSecret, clientDomain string) (map[string]interface{}, error)
+	AddClientCredential(clientID, clientSecret, clientDomain, scope string) (map[string]interface{}, error)
 
 	// views
 	// Login 페이지
@@ -63,7 +61,6 @@ type oauthUsecase struct {
 	oauthServer      *commons.OAuthServer
 	jwtSecret        string
 	jwtExpiresSecond int64
-	oauthCookie      port.OAuthCookie
 	authRepo         port.AuthRepo
 	authView         port.AuthView
 	resRepo          port.ResourceRepo
@@ -73,7 +70,6 @@ func NewOAuthUsecase(
 	oauthServer *commons.OAuthServer,
 	jwtSecret string,
 	jwtExpiresSecond int64,
-	oauthCookie port.OAuthCookie,
 	authRepo port.AuthRepo,
 	authView port.AuthView,
 	resRepo port.ResourceRepo,
@@ -83,7 +79,6 @@ func NewOAuthUsecase(
 		oauthServer:      oauthServer,
 		jwtSecret:        jwtSecret,
 		jwtExpiresSecond: jwtExpiresSecond,
-		oauthCookie:      oauthCookie,
 		authRepo:         authRepo,
 		authView:         authView,
 		resRepo:          resRepo,
@@ -137,12 +132,12 @@ func (u *oauthUsecase) Authenticate(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 
-	returnURI, err := u.oauthCookie.ReadReturnURI(r)
+	returnURI, err := u.authRepo.GetReturnURI(r)
 	if err != nil {
 		return err
 	}
 	if returnURI == "" {
-		return errors.New("return uri does not exist")
+		return merror.ErrorNoReturnURI
 	}
 
 	accessToken, err := mjwt.GenerateAccessToken(u.jwtSecret, userID, u.jwtExpiresSecond, "")
@@ -150,7 +145,7 @@ func (u *oauthUsecase) Authenticate(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 
-	u.oauthCookie.WriteAccessToken(w, accessToken)
+	u.authRepo.SetAccessToken(w, accessToken)
 	return nil
 }
 
@@ -205,8 +200,8 @@ func (u *oauthUsecase) GrantAuthorizeCode(w http.ResponseWriter, r *http.Request
 		r.Form = v
 	}
 
-	u.oauthCookie.ClearReturnURI(w)
-	u.oauthCookie.ClearRedirectURI(w)
+	u.authRepo.ClearClientReturnURI(w)
+	u.authRepo.ClearClientRedirectURI(w)
 	ctx := moauth.WithUserIDContext(r.Context(), userID)
 
 	return u.oauthServer.Srv.HandleAuthorizeRequest(w, r.WithContext(ctx))
@@ -237,12 +232,13 @@ func (u *oauthUsecase) VerifyToken(w http.ResponseWriter, r *http.Request) (map[
 	return data, nil
 }
 
-func (u *oauthUsecase) AddClientCredential(clientID, clientSecret, clientDomain string) (map[string]interface{}, error) {
+func (u *oauthUsecase) AddClientCredential(clientID, clientSecret, clientDomain, scope string) (map[string]interface{}, error) {
 
-	err := u.oauthServer.ClientStore.Set(clientID, &models.Client{
+	err := u.oauthServer.ClientStore.Set(clientID, &moauth.OAuthClient{
 		ID:     clientID,
 		Secret: clientSecret,
 		Domain: clientDomain,
+		Scope:  scope,
 	})
 	if err != nil {
 		return nil, err

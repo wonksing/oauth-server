@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/wonksing/oauth-server/pkg/commons"
@@ -26,6 +25,10 @@ func NewOAuthSelfRepo(oauthCookie port.OAuthCookie, jwtSecret string, loginPageA
 	}
 }
 
+func (repo *OAuthSelfRepo) ClearClientReturnURI(w http.ResponseWriter) {
+	repo.oauthCookie.ClearReturnURI(w)
+}
+
 func (repo *OAuthSelfRepo) SetClientReturnURI(w http.ResponseWriter, r *http.Request) error {
 	clientID := r.Form.Get("client_id")
 	redirectURI := r.Form.Get("redirect_uri")
@@ -33,17 +36,28 @@ func (repo *OAuthSelfRepo) SetClientReturnURI(w http.ResponseWriter, r *http.Req
 		repo.oauthCookie.WriteReturnURI(w, r.Form.Encode())
 	} else {
 		repo.oauthCookie.ClearReturnURI(w)
-		return errors.New("client id and redirect uri do not exist")
+		if clientID == "" {
+			return merror.ErrorNoClientID
+		}
+		if redirectURI == "" {
+			return merror.ErrorNoRedirectURI
+		}
+
+		return merror.ErrorInsufficientClientInfo
 	}
 
 	return nil
+}
+
+func (repo *OAuthSelfRepo) ClearClientRedirectURI(w http.ResponseWriter) {
+	repo.oauthCookie.ClearRedirectURI(w)
 }
 
 func (repo *OAuthSelfRepo) SetClientRedirectURI(w http.ResponseWriter, r *http.Request) error {
 	redirectURI := r.Form.Get("redirect_uri")
 	if redirectURI == "" {
 		repo.oauthCookie.ClearRedirectURI(w)
-		return errors.New("redirect uri does not exist")
+		return merror.ErrorNoRedirectURI
 	}
 	repo.oauthCookie.WriteRedirectURI(w, redirectURI)
 
@@ -61,11 +75,19 @@ func (repo *OAuthSelfRepo) RedirectToClient(w http.ResponseWriter, r *http.Reque
 	}
 
 	if redirectURI == "" {
-		return errors.New("no client to redirect")
+		return merror.ErrorNoRedirectURI
 	}
 
 	commons.Redirect(w, redirectURI)
 	return nil
+}
+
+func (repo *OAuthSelfRepo) SetAccessToken(w http.ResponseWriter, accessToken string) {
+	repo.oauthCookie.WriteAccessToken(w, accessToken)
+}
+
+func (repo *OAuthSelfRepo) ClearAccessToken(w http.ResponseWriter) {
+	repo.oauthCookie.ClearAccessToken(w)
 }
 
 func (repo *OAuthSelfRepo) GetUserID(r *http.Request) (string, error) {

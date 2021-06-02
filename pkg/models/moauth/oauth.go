@@ -2,7 +2,6 @@ package moauth
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"github.com/wonksing/oauth-server/pkg/models/merror"
@@ -61,7 +60,7 @@ type Action struct {
 
 func GetAuthResources(mapScopes map[string]string, clientScope string) (*AuthorizedResources, string, error) {
 	if clientScope == "" {
-		return nil, "", merror.ErrorNotAllowedScop
+		return nil, "", merror.ErrorNotAllowedClientScop
 	}
 
 	allowed := ""
@@ -104,10 +103,10 @@ func GetAuthResources(mapScopes map[string]string, clientScope string) (*Authori
 
 func IsAuthorized(authResources *AuthorizedResources, path, method string) (bool, error) {
 	if authResources == nil {
-		return false, errors.New("no authorized resources")
+		return false, merror.ErrorNoAllowedResource
 	}
 	if path == "" {
-		return false, errors.New("no path")
+		return false, merror.ErrorNoResourceToAccess
 	}
 
 	isAuthorized := false
