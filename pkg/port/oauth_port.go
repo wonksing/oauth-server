@@ -1,6 +1,9 @@
 package port
 
-import "net/http"
+import (
+	"github.com/wonksing/oauth-server/pkg/models/moauth"
+	"net/http"
+)
 
 type OAuthCookie interface {
 	ReadReturnURI(r *http.Request) (string, error)
@@ -46,4 +49,12 @@ type AuthView interface {
 
 type ResourceRepo interface {
 	VerifyUserIDPW(userID, userPW string) (string, error)
+}
+
+type OAuth2Authorizer interface {
+	AuthorizeCode(w http.ResponseWriter, r *http.Request) error
+	Token(w http.ResponseWriter, r *http.Request) error
+	ValidateToken(r *http.Request) (accessToken string, expiresIn int64, clientID string, userID string, scope string, err error)
+	AddClient(clientID, clientSecret, clientDomain, scope string) error
+	GetClientByID(clientID string) (*moauth.OAuthClient, error)
 }
