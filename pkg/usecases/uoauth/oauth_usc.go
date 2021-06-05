@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/wonksing/oauth-server/pkg/commons"
 	"github.com/wonksing/oauth-server/pkg/models/merror"
@@ -152,7 +153,8 @@ func (u *oauthUsecase) Authenticate(w http.ResponseWriter, r *http.Request) erro
 		return merror.ErrorNoReturnURI
 	}
 
-	accessToken, err := mjwt.GenerateAccessToken(u.jwtSecret, userID, u.jwtExpiresSecond, "")
+	expireTimeUnix := time.Now().Add(time.Duration(u.jwtExpiresSecond) * time.Second).Unix()
+	accessToken, err := mjwt.GenerateAccessToken(u.jwtSecret, userID, expireTimeUnix, "")
 	if err != nil {
 		return err
 	}

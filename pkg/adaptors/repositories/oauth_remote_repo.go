@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/wonksing/oauth-server/pkg/commons"
 	"github.com/wonksing/oauth-server/pkg/models/merror"
@@ -140,7 +141,8 @@ func (repo *OAuthRemoteRepo) RedirectToLogin(w http.ResponseWriter, r *http.Requ
 	repo.oauthCookie.ClearAccessToken(w)
 
 	urlVal := r.Form.Encode()
-	token, err := mjwt.GenerateAccessToken(repo.jwtSecret, "", repo.jwtExpiresSecond, urlVal)
+	expireTimeUnix := time.Now().Add(time.Duration(repo.jwtExpiresSecond) * time.Second).Unix()
+	token, err := mjwt.GenerateAccessToken(repo.jwtSecret, "", expireTimeUnix, urlVal)
 	if err != nil {
 		return err
 	}

@@ -3,7 +3,6 @@ package mjwt
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/dgrijalva/jwt-go"
 )
@@ -24,11 +23,12 @@ func NewTokenClaim(usrID string, exp float64, returnURI string) *TokenClaim {
 	}
 }
 
-func mapClaim(usrID string, expSecond int64, returnURI string) *jwt.Token {
+func mapClaim(usrID string, expireTimeUnix int64, returnURI string) *jwt.Token {
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := token.Claims.(jwt.MapClaims)
 	claims["usr_id"] = usrID
-	claims["exp"] = time.Now().Add(time.Duration(expSecond) * time.Second).Unix()
+	// claims["exp"] = time.Now().Add(time.Duration(expSecond) * time.Second).Unix()
+	claims["exp"] = expireTimeUnix
 	claims["return_uri"] = returnURI
 	return token
 }
@@ -46,8 +46,8 @@ func getTokenClaim(token *jwt.Token) *TokenClaim {
 	return claim
 }
 
-func GenerateAccessToken(tokenSecret string, usrID string, expSecond int64, returnURI string) (string, error) {
-	token := mapClaim(usrID, expSecond, returnURI)
+func GenerateAccessToken(tokenSecret string, usrID string, expireTimeUnix int64, returnURI string) (string, error) {
+	token := mapClaim(usrID, expireTimeUnix, returnURI)
 
 	tokenString, err := token.SignedString([]byte(tokenSecret))
 	if err != nil {
