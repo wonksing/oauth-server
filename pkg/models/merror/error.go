@@ -32,7 +32,7 @@ func (o *OAuthError) Error() string {
 func (o *OAuthError) ResponseData() map[string]interface{} {
 	data := make(map[string]interface{})
 	data["error"] = http.StatusText(o.Status)
-	data["error_description"] = o.Description
+	data["error_description"] = o.ErrMsg
 	return data
 }
 

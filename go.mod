@@ -12,7 +12,10 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/natefinch/lumberjack v2.0.0+incompatible
 	github.com/sirupsen/logrus v1.8.1
+	github.com/smartystreets/assertions v0.0.0-20180927180507-b2de0cb4f26d
 	github.com/spf13/viper v1.7.1
+	github.com/stretchr/objx v0.3.0 // indirect
+	github.com/stretchr/testify v1.7.0
 	github.com/tidwall/btree v0.5.0 // indirect
 	github.com/tidwall/buntdb v1.2.3 // indirect
 	github.com/tidwall/gjson v1.8.0 // indirect
@@ -20,4 +23,5 @@ require (
 	golang.org/x/oauth2 v0.0.0-20210514164344-f6687ab2804c
 	golang.org/x/sys v0.0.0-20210601080250-7ecdf8ef093b // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
+	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )
