@@ -1,9 +1,12 @@
 package port
 
 import (
-	"github.com/wonksing/oauth-server/pkg/models/moauth"
 	"net/http"
+
+	"github.com/wonksing/oauth-server/pkg/models/moauth"
 )
+
+//go:generate mockgen -destination=../mocks/mock_oauth_port.go -package=mocks -mock_names=OAuthCookie=MockOAuthCookie,AuthRepo=MockAuthRepo,AuthView=MockAuthView,ResourceRepo=MockResourceRepo,OAuth2Authorizer=MockOAuth2Authorizer -source=./oauth_port.go . OAuthCookie,AuthRepo,AuthView,ResourceRepo,OAuth2Authorizer
 
 type OAuthCookie interface {
 	ReadReturnURI(r *http.Request) (string, error)

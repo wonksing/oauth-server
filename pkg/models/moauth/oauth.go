@@ -88,7 +88,7 @@ func (s *OAuthScope) PickAllowedScope(clientScope string) string {
 		}
 	}
 
-	return allowedScope
+	return strings.TrimSpace(allowedScope)
 }
 
 func (s *OAuthScope) FilterScope(allowed, requested string) (string, error) {

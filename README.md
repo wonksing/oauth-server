@@ -14,6 +14,9 @@ go get -u github.com/sirupsen/logrus
 go get golang.org/x/oauth2
 
 go get -u github.com/stretchr/testify
+
+go get github.com/golang/mock/mockgen@v1.5.0
+go install github.com/golang/mock/mockgen@v1.5.0
 ```
 
 ## Scripts
