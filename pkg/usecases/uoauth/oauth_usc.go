@@ -98,15 +98,9 @@ func NewOAuthUsecase(
 }
 
 func (u *oauthUsecase) SetClientReturnURI(w http.ResponseWriter, r *http.Request) error {
-	if r.Form == nil {
-		r.ParseForm()
-	}
 	return u.authRepo.SetClientReturnURI(w, r)
 }
 func (u *oauthUsecase) SetClientRedirectURI(w http.ResponseWriter, r *http.Request) error {
-	if r.Form == nil {
-		r.ParseForm()
-	}
 	return u.authRepo.SetClientRedirectURI(w, r)
 }
 
@@ -115,10 +109,6 @@ func (u *oauthUsecase) RedirectToClient(w http.ResponseWriter, r *http.Request) 
 }
 
 func (u *oauthUsecase) RedirectToLogin(w http.ResponseWriter, r *http.Request) error {
-	if r.Form == nil {
-		r.ParseForm()
-	}
-
 	err := u.SetClientReturnURI(w, r)
 	if err != nil {
 		return err
@@ -134,10 +124,6 @@ func (u *oauthUsecase) VerifyUserIDPW(userID, userPW string) (string, error) {
 	return u.resRepo.VerifyUserIDPW(userID, userPW)
 }
 func (u *oauthUsecase) Authenticate(w http.ResponseWriter, r *http.Request) error {
-	if r.Form == nil {
-		r.ParseForm()
-	}
-
 	userID := r.Form.Get("username")
 	userPW := r.Form.Get("password")
 	_, err := u.resRepo.VerifyUserIDPW(userID, userPW)
@@ -169,10 +155,6 @@ func (u *oauthUsecase) RedirectToAuthorize(w http.ResponseWriter, r *http.Reques
 }
 
 func (u *oauthUsecase) GrantAuthorizeCode(w http.ResponseWriter, r *http.Request) error {
-	if r.Form == nil {
-		r.ParseForm()
-	}
-
 	userID, err := u.authRepo.GetUserID(r)
 	if err != nil {
 		if err == merror.ErrorUserIDNotFound {
@@ -234,9 +216,6 @@ func (u *oauthUsecase) GrantedScope(w http.ResponseWriter, r *http.Request) (sco
 	// authorization code 를 요청할 때, 요청 파라메터의 client_id와 scope를 이용해서
 	// 허용된 scope을 구한다.
 
-	if r.Form == nil {
-		r.ParseForm()
-	}
 	clientID := r.Form.Get("client_id")
 	requestedScope := r.Form.Get("scope")
 
