@@ -249,11 +249,13 @@ func (u *oauthUsecase) RequestToken(w http.ResponseWriter, r *http.Request) erro
 func (u *oauthUsecase) VerifyToken(w http.ResponseWriter, r *http.Request) (map[string]interface{}, error) {
 	commons.DumpRequest(os.Stdout, "OAuthValidateTokenHandler", r) // Ignore the error
 
-	accessToken, expiresIn, clientID, userID, scope, err := u.oauth2Authorizer.ValidateToken(r)
+	_, expiresIn, clientID, userID, scope, err := u.oauth2Authorizer.ValidateToken(r)
 	if err != nil {
 		return nil, err
 	}
-	commons.VerifyJWT(u.jwtSecret, accessToken)
+
+	// unnecessary to verify jwt here
+	// commons.VerifyJWT(u.jwtSecret, accessToken)
 
 	data := map[string]interface{}{
 		"expires_in": expiresIn,
