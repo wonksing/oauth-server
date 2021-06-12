@@ -24,6 +24,9 @@ func NewOAuthHandler(oauthUsc uoauth.Usecase) *OAuthHandler {
 // LoginHandler 로그인 페이지로 보낸다.
 func (h *OAuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	commons.DumpRequest(os.Stdout, "OAuthLoginHandler", r) // Ignore the error
+	if r.Form == nil {
+		r.ParseForm()
+	}
 
 	err := h.oauthUsc.Login(w, r)
 	if err != nil {
@@ -36,6 +39,9 @@ func (h *OAuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 // GET 메소드면 로그인 페이지로 보내고, POST면 아이디와 비번을 검증한다.
 func (h *OAuthHandler) AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 	commons.DumpRequest(os.Stdout, "OAuthAuthenticateHandler", r) // Ignore the error
+	if r.Form == nil {
+		r.ParseForm()
+	}
 
 	err := h.oauthUsc.Authenticate(w, r)
 	if err != nil {
@@ -54,6 +60,9 @@ func (h *OAuthHandler) AuthenticateHandler(w http.ResponseWriter, r *http.Reques
 // AccessHandler 엑세스 허용 페이지로 보낸다.
 func (h *OAuthHandler) AccessHandler(w http.ResponseWriter, r *http.Request) {
 	commons.DumpRequest(os.Stdout, "OAuthLoginHandler", r) // Ignore the error
+	if r.Form == nil {
+		r.ParseForm()
+	}
 
 	err := h.oauthUsc.Authorize(w, r)
 	if err != nil {
@@ -66,6 +75,9 @@ func (h *OAuthHandler) AccessHandler(w http.ResponseWriter, r *http.Request) {
 // 로그인 후 권한 인가를 허용한 사용자인 경우 auth code를 생성하여 redirect_uri 로 보낸다.
 func (h *OAuthHandler) GrantAuthorizeCodeHandler(w http.ResponseWriter, r *http.Request) {
 	commons.DumpRequest(os.Stdout, "GrantAuthorizeCodeHandler", r)
+	if r.Form == nil {
+		r.ParseForm()
+	}
 
 	err := h.oauthUsc.GrantAuthorizeCode(w, r)
 	if err != nil {
@@ -76,6 +88,9 @@ func (h *OAuthHandler) GrantAuthorizeCodeHandler(w http.ResponseWriter, r *http.
 
 func (h *OAuthHandler) OAuthTokenHandler(w http.ResponseWriter, r *http.Request) {
 	commons.DumpRequest(os.Stdout, "OAuthTokenHandler", r) // Ignore the error
+	if r.Form == nil {
+		r.ParseForm()
+	}
 
 	err := h.oauthUsc.RequestToken(w, r)
 	if err != nil {
@@ -85,6 +100,9 @@ func (h *OAuthHandler) OAuthTokenHandler(w http.ResponseWriter, r *http.Request)
 
 func (h *OAuthHandler) OAuthValidateTokenHandler(w http.ResponseWriter, r *http.Request) {
 	commons.DumpRequest(os.Stdout, "OAuthValidateTokenHandler", r) // Ignore the error
+	if r.Form == nil {
+		r.ParseForm()
+	}
 
 	data, err := h.oauthUsc.VerifyToken(w, r)
 	if err != nil {
@@ -97,6 +115,9 @@ func (h *OAuthHandler) OAuthValidateTokenHandler(w http.ResponseWriter, r *http.
 }
 
 func (h *OAuthHandler) CredentialHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Form == nil {
+		r.ParseForm()
+	}
 
 	clientID := r.FormValue("client_id")
 	clientSecret := r.FormValue("client_secret")

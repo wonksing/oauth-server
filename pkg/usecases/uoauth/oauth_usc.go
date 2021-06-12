@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/wonksing/oauth-server/pkg/commons"
@@ -29,9 +30,9 @@ type Usecase interface {
 	// RedirectToLogin 로그인 페이지로 보낸다
 	RedirectToLogin(w http.ResponseWriter, r *http.Request) error
 
-	// Authenticate 사용자 인증
-	// 사용자의 ID와 PW 검사, return uri 유무 확인 후 이상 없으면
-	// access token을 생성하여 쿠키에 저장하고 인가 페이지로 보낸다.
+	// VerifyUserIDPW 사용자 아이디와 비번을 검증한다
+	VerifyUserIDPW(userID, userPW string) (string, error)
+	// Authenticate 사용자를 인증한다. 아이디&비번, return_uri 검증 후 AccessToken을 발행하여 쿠키에 저장
 	Authenticate(w http.ResponseWriter, r *http.Request) error
 
 	// RedirectToAuthorize 접근인가 페이지로 보낸다
@@ -40,6 +41,13 @@ type Usecase interface {
 	// GrantAuthorizeCode Authorization Code를 발급하여 클라이언트에 전달한다.
 	// 사용자 인증과 인가 확인 후 발급한다.
 	GrantAuthorizeCode(w http.ResponseWriter, r *http.Request) error
+
+	// GrantedUserID 허용한 사용자 아이디
+	GrantedUserID(w http.ResponseWriter, r *http.Request) (string, error)
+	// GrantedScope 허용한 Scope
+	GrantedScope(w http.ResponseWriter, r *http.Request) (scope string, err error)
+	// GrnatScopeByClient Client별 허용된 Scope을 구한다
+	GrnatScopeByClient(clientID, requestedScope string) (scope string, err error)
 
 	// RequestToken AccessToken을 발급해준다
 	RequestToken(w http.ResponseWriter, r *http.Request) error
@@ -58,44 +66,41 @@ type Usecase interface {
 }
 
 type oauthUsecase struct {
-	oauthServer      *commons.OAuthServer
 	jwtSecret        string
 	jwtExpiresSecond int64
+	oauth2Authorizer port.OAuth2Authorizer
 	authRepo         port.AuthRepo
 	authView         port.AuthView
 	resRepo          port.ResourceRepo
+	scopeMap         *moauth.OAuthScope
 }
 
 func NewOAuthUsecase(
-	oauthServer *commons.OAuthServer,
 	jwtSecret string,
 	jwtExpiresSecond int64,
+	oauth2Authorizer port.OAuth2Authorizer,
 	authRepo port.AuthRepo,
 	authView port.AuthView,
 	resRepo port.ResourceRepo,
+	scopeMap *moauth.OAuthScope,
 ) Usecase {
 
 	usc := &oauthUsecase{
-		oauthServer:      oauthServer,
 		jwtSecret:        jwtSecret,
 		jwtExpiresSecond: jwtExpiresSecond,
+		oauth2Authorizer: oauth2Authorizer,
 		authRepo:         authRepo,
 		authView:         authView,
 		resRepo:          resRepo,
+		scopeMap:         scopeMap,
 	}
 	return usc
 }
 
 func (u *oauthUsecase) SetClientReturnURI(w http.ResponseWriter, r *http.Request) error {
-	if r.Form == nil {
-		r.ParseForm()
-	}
 	return u.authRepo.SetClientReturnURI(w, r)
 }
 func (u *oauthUsecase) SetClientRedirectURI(w http.ResponseWriter, r *http.Request) error {
-	if r.Form == nil {
-		r.ParseForm()
-	}
 	return u.authRepo.SetClientRedirectURI(w, r)
 }
 
@@ -104,10 +109,6 @@ func (u *oauthUsecase) RedirectToClient(w http.ResponseWriter, r *http.Request) 
 }
 
 func (u *oauthUsecase) RedirectToLogin(w http.ResponseWriter, r *http.Request) error {
-	if r.Form == nil {
-		r.ParseForm()
-	}
-
 	err := u.SetClientReturnURI(w, r)
 	if err != nil {
 		return err
@@ -119,15 +120,13 @@ func (u *oauthUsecase) RedirectToLogin(w http.ResponseWriter, r *http.Request) e
 
 	return u.authRepo.RedirectToLogin(w, r)
 }
-
+func (u *oauthUsecase) VerifyUserIDPW(userID, userPW string) (string, error) {
+	return u.resRepo.VerifyUserIDPW(userID, userPW)
+}
 func (u *oauthUsecase) Authenticate(w http.ResponseWriter, r *http.Request) error {
-	if r.Form == nil {
-		r.ParseForm()
-	}
-
 	userID := r.Form.Get("username")
 	userPW := r.Form.Get("password")
-	err := u.resRepo.Authenticate(userID, userPW)
+	_, err := u.resRepo.VerifyUserIDPW(userID, userPW)
 	if err != nil {
 		return err
 	}
@@ -140,7 +139,8 @@ func (u *oauthUsecase) Authenticate(w http.ResponseWriter, r *http.Request) erro
 		return merror.ErrorNoReturnURI
 	}
 
-	accessToken, err := mjwt.GenerateAccessToken(u.jwtSecret, userID, u.jwtExpiresSecond, "")
+	expireTimeUnix := time.Now().Add(time.Duration(u.jwtExpiresSecond) * time.Second).Unix()
+	accessToken, err := mjwt.GenerateAccessToken(u.jwtSecret, userID, expireTimeUnix, "")
 	if err != nil {
 		return err
 	}
@@ -155,10 +155,6 @@ func (u *oauthUsecase) RedirectToAuthorize(w http.ResponseWriter, r *http.Reques
 }
 
 func (u *oauthUsecase) GrantAuthorizeCode(w http.ResponseWriter, r *http.Request) error {
-	if r.Form == nil {
-		r.ParseForm()
-	}
-
 	userID, err := u.authRepo.GetUserID(r)
 	if err != nil {
 		if err == merror.ErrorUserIDNotFound {
@@ -204,42 +200,74 @@ func (u *oauthUsecase) GrantAuthorizeCode(w http.ResponseWriter, r *http.Request
 	u.authRepo.ClearClientRedirectURI(w)
 	ctx := moauth.WithUserIDContext(r.Context(), userID)
 
-	return u.oauthServer.Srv.HandleAuthorizeRequest(w, r.WithContext(ctx))
+	return u.oauth2Authorizer.AuthorizeCode(w, r.WithContext(ctx))
+}
+func (u *oauthUsecase) GrantedUserID(w http.ResponseWriter, r *http.Request) (string, error) {
+	userID, err := moauth.GetUserIDContext(r.Context())
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(userID) == "" {
+		return "", merror.ErrorUserIDNotFound
+	}
+	return userID, err
+}
+func (u *oauthUsecase) GrantedScope(w http.ResponseWriter, r *http.Request) (scope string, err error) {
+	// authorization code 를 요청할 때, 요청 파라메터의 client_id와 scope를 이용해서
+	// 허용된 scope을 구한다.
+
+	clientID := r.Form.Get("client_id")
+	requestedScope := r.Form.Get("scope")
+
+	scope, err = u.GrnatScopeByClient(clientID, requestedScope)
+	return
+}
+
+func (u *oauthUsecase) GrnatScopeByClient(clientID, requestedScope string) (scope string, err error) {
+	ci, err := u.oauth2Authorizer.GetClientByID(clientID)
+	if err != nil {
+		return
+	}
+	allowedScope := ci.GetScope()
+	filteredScope, err := u.scopeMap.FilterScope(allowedScope, requestedScope)
+	if err != nil {
+		return
+	}
+
+	scope = u.scopeMap.PickAllowedScope(filteredScope)
+	if scope == "" {
+		err = merror.ErrorNoAllowedScope
+		return
+	}
+	return
 }
 
 func (u *oauthUsecase) RequestToken(w http.ResponseWriter, r *http.Request) error {
-	return u.oauthServer.Srv.HandleTokenRequest(w, r)
+	return u.oauth2Authorizer.Token(w, r)
 }
 
 func (u *oauthUsecase) VerifyToken(w http.ResponseWriter, r *http.Request) (map[string]interface{}, error) {
 	commons.DumpRequest(os.Stdout, "OAuthValidateTokenHandler", r) // Ignore the error
 
-	token, err := u.oauthServer.Srv.ValidationBearerToken(r)
+	_, expiresIn, clientID, userID, scope, err := u.oauth2Authorizer.ValidateToken(r)
 	if err != nil {
 		return nil, err
 	}
-	commons.VerifyJWT(u.jwtSecret, token.GetAccess())
 
-	t := token.GetAccessCreateAt().Add(token.GetAccessExpiresIn())
-	expiresIn := int64(time.Until(t).Seconds())
+	// unnecessary to verify jwt here
+	// commons.VerifyJWT(u.jwtSecret, accessToken)
+
 	data := map[string]interface{}{
-		// "expires_in": int64(token.GetAccessCreateAt().Add(token.GetAccessExpiresIn()).Sub(time.Now()).Seconds()),
 		"expires_in": expiresIn,
-		"client_id":  token.GetClientID(),
-		"user_id":    token.GetUserID(),
-		"scope":      token.GetScope(),
+		"client_id":  clientID,
+		"user_id":    userID,
+		"scope":      scope,
 	}
 	return data, nil
 }
 
 func (u *oauthUsecase) AddClientCredential(clientID, clientSecret, clientDomain, scope string) (map[string]interface{}, error) {
-
-	err := u.oauthServer.ClientStore.Set(clientID, &moauth.OAuthClient{
-		ID:     clientID,
-		Secret: clientSecret,
-		Domain: clientDomain,
-		Scope:  scope,
-	})
+	err := u.oauth2Authorizer.AddClient(clientID, clientSecret, clientDomain, scope)
 	if err != nil {
 		return nil, err
 	}

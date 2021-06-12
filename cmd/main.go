@@ -1,15 +1,15 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/wonksing/oauth-server/pkg/adaptors/authorizers"
 
 	oauthErrors "github.com/go-oauth2/oauth2/v4/errors"
 
@@ -142,6 +142,40 @@ func getAllowedGrantTypesFromConfig(grantTypeConf string) []oauth2.GrantType {
 	return grantTypes
 }
 
+func getScopesFromConfig(m map[string]interface{}) *moauth.OAuthScope {
+	scopeMap := moauth.NewOAuthScope()
+	for k, v := range m {
+
+		list := make(moauth.AuthorizedResources, 0)
+		resources := strings.Split(v.(string), ",")
+		for _, r := range resources {
+			ar := moauth.AuthorizedResource{}
+			ar.Path = r
+			tmp := strings.Split(k, ":")
+			if len(tmp) == 1 {
+				ar.Get = true
+				ar.Post = true
+				ar.Put = true
+				ar.Delete = true
+			} else {
+				switch tmp[len(tmp)-1] {
+				case "read":
+					ar.Get = true
+				case "update":
+					ar.Post = true
+				case "write":
+					ar.Put = true
+				case "delete":
+					ar.Delete = true
+				}
+			}
+			list = append(list, ar)
+		}
+		scopeMap.Set(k, list)
+	}
+	return scopeMap
+}
+
 func main() {
 
 	flag.Parse()
@@ -195,6 +229,11 @@ func main() {
 	cc := conf.Sub("client_credentials")
 	clientCredentialMap := cc.AllSettings()
 
+	scopeViperSub := conf.Sub("scope")
+	scopeConf := scopeViperSub.AllSettings()
+
+	scopeMap := getScopesFromConfig(scopeConf)
+
 	grantTypes := getAllowedGrantTypesFromConfig(allowedGrantType)
 	clientCredentials := getClientCredentialsFromConfig(clientCredentialMap)
 
@@ -203,71 +242,6 @@ func main() {
 		clientCredentialsAccessTokenExp, clientCredentialsRefreshTokenExp, clientCredentialsGenerateRefresh,
 		tokenStoreFilePath, jwtAccessToken, oAuthJwtSecret, grantTypes, clientCredentials,
 	)
-
-	// TODO Scope 모델 정의
-	mapScopes := make(map[string]string)
-	mapScopes["item"] = "/item,/item/new,/item/_add,/item/_delete"
-	mapScopes["item:read"] = "/item,/item/new"
-	mapScopes["item:new:read"] = "/item,/item/new"
-	mapScopes["item:write"] = "/item/_add"
-	mapScopes["emp"] = "/emp,/emp/new,/emp/_add"
-
-	oauthServer.Srv.SetResponseErrorHandler(func(re *oauthErrors.Response) {
-		// 오류 응답은 다음과 같은 json 포맷으로 통일하도록 하자
-		// {"error":"unauthorized_client","error_description":"The client is not authorized to request an authorization code using this method"}
-		log.WithFields(commons.LogrusFields()).Error(re.Error)
-		// if re.Error == merror.ErrorNotAllowedScop {
-		// 	re.StatusCode = http.StatusUnauthorized
-		// 	re.Description = http.StatusText(http.StatusUnauthorized)
-		// }
-	})
-	oauthServer.Srv.SetAuthorizeScopeHandler(func(w http.ResponseWriter, r *http.Request) (scope string, err error) {
-		// authorization code 를 요청할 때, 요청 파라메터의 client_id와 scope를 이용해서
-		// 허용된 scope을 구해야 한다.
-
-		// scope = "item:new:read"
-
-		if r.Form == nil {
-			r.ParseForm()
-		}
-		scope = r.Form.Get("scope")
-		return
-	})
-	oauthServer.Srv.SetClientScopeHandler(func(tgr *oauth2.TokenGenerateRequest) (allowed bool, err error) {
-		// 모든 Grant Type을 통해 Token을 요청할 때,
-
-		// _, scope, err := moauth.GetAuthResources(mapScopes, tgr.Scope)
-		// if err != nil {
-		// 	allowed = false
-		// 	return
-		// }
-		// allowed = true
-		// tgr.Scope = scope
-
-		allowed = true
-		err = nil
-
-		return
-	})
-	// Authorization Code Grant
-	oauthServer.Srv.SetUserAuthorizationHandler(func(w http.ResponseWriter, r *http.Request) (userID string, err error) {
-		userID, err = moauth.GetUserIDContext(r.Context())
-		if strings.TrimSpace(userID) == "" {
-			userID = ""
-			err = errors.New("not authorized")
-			return
-		}
-		return
-	})
-
-	// Password credentials
-	oauthServer.Srv.SetPasswordAuthorizationHandler(func(username, password string) (userID string, err error) {
-		// if username == password && username == "TTesTT" {
-		// 	userID = username
-		// }
-		err = errors.New("not supported")
-		return
-	})
 
 	oauthCookie := cookies.NewOAuthCookie(
 		returnURIKey,
@@ -301,15 +275,42 @@ func main() {
 	)
 	resRepo := repositories.NewOAuthUserRepo()
 
+	oauth2Authorizer := authorizers.NewOAuth2Authorizer(oauthServer)
+
 	oauthUsc := uoauth.NewOAuthUsecase(
-		oauthServer,
 		jwtSecret, jwtExpiresSecond,
+		oauth2Authorizer,
 		authRepo, authView, resRepo,
+		scopeMap,
 	)
 
 	oauthHandler := doauth.NewOAuthHandler(oauthUsc)
 	// jwtMiddleware := dmiddleware.NewJWTMiddleware(jwtSecret, moauth.KeyAccessToken, oauthUsc)
 	httpServer := commons.NewHttpServer(addr, wt, rt, cert, certKey, nil, nil, nil)
+
+	oauthServer.Srv.SetResponseErrorHandler(func(re *oauthErrors.Response) {
+		// 오류 응답은 다음과 같은 json 포맷으로 통일하도록 하자
+		// {"error":"unauthorized_client","error_description":"The client is not authorized to request an authorization code using this method"}
+		log.WithFields(commons.LogrusFields()).Error(re.Error)
+	})
+	oauthServer.Srv.SetAuthorizeScopeHandler(oauthUsc.GrantedScope)
+	oauthServer.Srv.SetClientScopeHandler(func(tgr *oauth2.TokenGenerateRequest) (allowed bool, err error) {
+		// 모든 Grant Type을 통해 Token을 요청할 때, 발급한 토큰에 여기서 지정한 scope이 포함된다
+		scope, err := oauthUsc.GrnatScopeByClient(tgr.ClientID, tgr.Scope)
+		if err != nil {
+			allowed = false
+			return
+		}
+		allowed = true
+		tgr.Scope = scope
+		err = nil
+		return
+	})
+	// Authorization Code Grant
+	oauthServer.Srv.SetUserAuthorizationHandler(oauthUsc.GrantedUserID)
+
+	// Password credentials
+	oauthServer.Srv.SetPasswordAuthorizationHandler(oauthUsc.VerifyUserIDPW)
 
 	// OAuth2 API
 	restapis.RegisterOAuthAPIs(httpServer.Router, oauthHandler)

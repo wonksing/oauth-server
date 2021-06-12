@@ -12,11 +12,11 @@ func NewOAuthUserRepo() port.ResourceRepo {
 	return &OAuthUserRepo{}
 }
 
-func (repo *OAuthUserRepo) Authenticate(userID, userPW string) error {
+func (repo *OAuthUserRepo) VerifyUserIDPW(userID, userPW string) (string, error) {
 	// TODO Must Change
 	if userID != userPW {
-		return merror.ErrorUserIDNotFound
+		return "", merror.ErrorUserIDNotFound
 	}
 
-	return nil
+	return userID, nil
 }
