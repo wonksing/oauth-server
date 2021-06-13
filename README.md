@@ -23,7 +23,7 @@ go install github.com/golang/mock/mockgen@v1.5.0
 ```bash
 curl \
 -X GET \
--H 'Authorization: Bearer eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiIxMjM0NSIsImV4cCI6MTYyMjU3MjczMywic3ViIjoiYXNkZiJ9.cXndM_cQ9HsmBqBjpLKtXCc8-tDf81qsfragWn4vOiBDthoT0l7ZHS9ushfR3vMXSgb-9b1EGgad-UETuw2J3Q' \
+-H 'Authorization: Bearer eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiIxMjM0NSIsImV4cCI6MTYyMzU0OTY5NCwic3ViIjoiYXNkZiIsIlNjb3BlIjoiYWxsIn0.PWdcUUA2CfdARC34hTgDkAh-jsxd9WBZl6phuPAWvrh-EGiRewZ4BYAor7_D8_ezcJzRO7wbxEcR1TtJpFfQkw' \
 'http://localhost:9099/oauth/protected'
 
 
