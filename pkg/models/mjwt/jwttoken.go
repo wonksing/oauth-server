@@ -108,7 +108,7 @@ func GetTokenClaimContext(ctx context.Context) *TokenClaim {
 // JWTAccessClaims jwt claims
 type JWTAccessClaims struct {
 	jwt.StandardClaims
-	Scope string
+	Scope string `json:"scope,omitempty"`
 }
 
 // Valid claims verification
