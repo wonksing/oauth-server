@@ -15,6 +15,7 @@ import (
 	"github.com/go-oauth2/oauth2/v4/manage"
 	"github.com/go-oauth2/oauth2/v4/server"
 	"github.com/go-oauth2/oauth2/v4/store"
+	"github.com/wonksing/oauth-server/pkg/models/mjwt"
 	"github.com/wonksing/oauth-server/pkg/models/moauth"
 )
 
@@ -60,7 +61,8 @@ func initManager(clientStore *store.ClientStore,
 
 	// generate jwt access token
 	if jwtAccessToken {
-		manager.MapAccessGenerate(generates.NewJWTAccessGenerate("", []byte(jwtSecret), jwt.SigningMethodHS512))
+		// manager.MapAccessGenerate(generates.NewJWTAccessGenerate("", []byte(jwtSecret), jwt.SigningMethodHS512))
+		manager.MapAccessGenerate(mjwt.NewJWTAccessGenerate("", []byte(jwtSecret), jwt.SigningMethodHS512))
 	} else {
 		manager.MapAccessGenerate(generates.NewAccessGenerate())
 	}

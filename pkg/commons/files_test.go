@@ -8,13 +8,13 @@ import (
 )
 
 func TestFileExists(t *testing.T) {
-	filename := "../../test/data/file_exists.log"
+	filename := "../../test/data/file_exists.txt"
 	found := commons.FileExists(filename)
 	if !assert.Equal(t, true, found) {
 		t.FailNow()
 	}
 
-	filename = "../../test/data/file_not_exists.log"
+	filename = "../../test/data/file_not_exists.txt"
 	found = commons.FileExists(filename)
 	if !assert.Equal(t, false, found) {
 		t.FailNow()

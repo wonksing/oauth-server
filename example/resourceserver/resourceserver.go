@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-session/session"
 	"github.com/wonksing/oauth-server/pkg/commons"
+	"github.com/wonksing/oauth-server/pkg/models/mjwt"
 )
 
 var (
@@ -151,12 +152,12 @@ func oauthProtectedHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := commons.VerifyJWT("asdf", token)
+	claims, err := mjwt.VerifyOAuthJWT("asdf", token)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
-
+	userID := claims.Id
 	if userID == "" {
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
