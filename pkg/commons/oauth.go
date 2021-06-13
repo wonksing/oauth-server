@@ -3,7 +3,6 @@ package commons
 import (
 	"crypto/sha256"
 	"encoding/base64"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -143,27 +142,27 @@ func (s *OAuthServer) SetResponseErrorHandler(handler server.ResponseErrorHandle
 	s.Srv.SetResponseErrorHandler(handler)
 }
 
-func VerifyJWT(secret string, tokenStr string) (string, error) {
-	// Parse and verify jwt access token
-	token, err := jwt.ParseWithClaims(tokenStr, &generates.JWTAccessClaims{}, func(t *jwt.Token) (interface{}, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("parse error")
-		}
-		return []byte(secret), nil
-	})
-	if err != nil {
-		return "", err
-	}
+// func VerifyJWT(secret string, tokenStr string) (string, error) {
+// 	// Parse and verify jwt access token
+// 	token, err := jwt.ParseWithClaims(tokenStr, &generates.JWTAccessClaims{}, func(t *jwt.Token) (interface{}, error) {
+// 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+// 			return nil, fmt.Errorf("parse error")
+// 		}
+// 		return []byte(secret), nil
+// 	})
+// 	if err != nil {
+// 		return "", err
+// 	}
 
-	claims, ok := token.Claims.(*generates.JWTAccessClaims)
-	if !ok || !token.Valid {
-		// panic("invalid token")
-		return "", errors.New("invalid token")
-	}
+// 	claims, ok := token.Claims.(*generates.JWTAccessClaims)
+// 	if !ok || !token.Valid {
+// 		// panic("invalid token")
+// 		return "", errors.New("invalid token")
+// 	}
 
-	fmt.Println("claims:", claims.Audience, claims.Id, claims.Subject)
-	return claims.Audience, nil
-}
+// 	fmt.Println("claims:", claims.Audience, claims.Id, claims.Subject)
+// 	return claims.Audience, nil
+// }
 
 func GenCodeChallengeS256(s string) string {
 	s256 := sha256.Sum256([]byte(s))
