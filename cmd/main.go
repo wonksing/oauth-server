@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/wonksing/oauth-server/pkg/adaptors/authorizers"
+	"github.com/wonksing/oauth-server/pkg/adaptors/servers"
 
 	"github.com/spf13/viper"
 	"github.com/wonksing/oauth-server/cmd/restapis"
@@ -269,7 +269,7 @@ func main() {
 	)
 	resRepo := repositories.NewOAuthUserRepo()
 
-	oauth2Server := authorizers.NewOAuth2Server(
+	oauth2Server := servers.NewOAuth2Server(
 		authCodeAccessTokenExp, authCodeRefreshTokenExp, authCodeGenerateRefresh,
 		clientCredentialsAccessTokenExp, clientCredentialsRefreshTokenExp, clientCredentialsGenerateRefresh,
 		tokenStoreFilePath, jwtAccessToken, oAuthJwtSecret, grantTypes, clientCredentials,
