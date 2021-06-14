@@ -40,17 +40,17 @@ client_credentials:
     id: '12345'
     secret: '12345678'
     domain: 'na'
-    scope: 'all item:read emp:read'
+    scope: 'all item:read emp:read item emp'
   client2:
     id: 'abcde'
     secret: 'abcd1234'
     domain: 'localhost:8080'
-    scope: 'all item:read'
+    scope: 'all item:read item emp'
   client3:
     id: '222222'
     secret: '22222222'
     domain: 'localhost:8080'
-    scope: 'all emp:read'
+    scope: 'all emp:read item emp'
 
 scope:
   all: 'all'

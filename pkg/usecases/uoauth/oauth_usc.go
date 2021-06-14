@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/wonksing/oauth-server/pkg/commons"
@@ -42,12 +41,10 @@ type Usecase interface {
 	// 사용자 인증과 인가 확인 후 발급한다.
 	GrantAuthorizeCode(w http.ResponseWriter, r *http.Request) error
 
-	// GrantedUserID 허용한 사용자 아이디
-	GrantedUserID(w http.ResponseWriter, r *http.Request) (string, error)
-	// GrantedScope 허용한 Scope
-	GrantedScope(w http.ResponseWriter, r *http.Request) (scope string, err error)
-	// GrnatScopeByClient Client별 허용된 Scope을 구한다
-	GrnatScopeByClient(clientID, requestedScope string) (scope string, err error)
+	// // GrantedScope 허용한 Scope
+	// GrantedScope(w http.ResponseWriter, r *http.Request) (scope string, err error)
+	// // GrnatScopeByClient Client별 허용된 Scope을 구한다
+	// GrnatScopeByClient(clientID, requestedScope string) (scope string, err error)
 
 	// RequestToken AccessToken을 발급해준다
 	RequestToken(w http.ResponseWriter, r *http.Request) error
@@ -68,31 +65,28 @@ type Usecase interface {
 type oauthUsecase struct {
 	jwtSecret        string
 	jwtExpiresSecond int64
-	oauth2Authorizer port.OAuth2Authorizer
+	oauth2Server     port.OAuth2Server
 	authRepo         port.AuthRepo
 	authView         port.AuthView
 	resRepo          port.ResourceRepo
-	scopeMap         *moauth.OAuthScope
 }
 
 func NewOAuthUsecase(
 	jwtSecret string,
 	jwtExpiresSecond int64,
-	oauth2Authorizer port.OAuth2Authorizer,
+	oauth2Server port.OAuth2Server,
 	authRepo port.AuthRepo,
 	authView port.AuthView,
 	resRepo port.ResourceRepo,
-	scopeMap *moauth.OAuthScope,
 ) Usecase {
 
 	usc := &oauthUsecase{
 		jwtSecret:        jwtSecret,
 		jwtExpiresSecond: jwtExpiresSecond,
-		oauth2Authorizer: oauth2Authorizer,
+		oauth2Server:     oauth2Server,
 		authRepo:         authRepo,
 		authView:         authView,
 		resRepo:          resRepo,
-		scopeMap:         scopeMap,
 	}
 	return usc
 }
@@ -200,56 +194,47 @@ func (u *oauthUsecase) GrantAuthorizeCode(w http.ResponseWriter, r *http.Request
 	u.authRepo.ClearClientRedirectURI(w)
 	ctx := moauth.WithUserIDContext(r.Context(), userID)
 
-	return u.oauth2Authorizer.AuthorizeCode(w, r.WithContext(ctx))
-}
-func (u *oauthUsecase) GrantedUserID(w http.ResponseWriter, r *http.Request) (string, error) {
-	userID, err := moauth.GetUserIDContext(r.Context())
-	if err != nil {
-		return "", err
-	}
-	if strings.TrimSpace(userID) == "" {
-		return "", merror.ErrorUserIDNotFound
-	}
-	return userID, err
-}
-func (u *oauthUsecase) GrantedScope(w http.ResponseWriter, r *http.Request) (scope string, err error) {
-	// authorization code 를 요청할 때, 요청 파라메터의 client_id와 scope를 이용해서
-	// 허용된 scope을 구한다.
-
-	clientID := r.Form.Get("client_id")
-	requestedScope := r.Form.Get("scope")
-
-	scope, err = u.GrnatScopeByClient(clientID, requestedScope)
-	return
+	return u.oauth2Server.AuthorizeCode(w, r.WithContext(ctx))
 }
 
-func (u *oauthUsecase) GrnatScopeByClient(clientID, requestedScope string) (scope string, err error) {
-	ci, err := u.oauth2Authorizer.GetClientByID(clientID)
-	if err != nil {
-		return
-	}
-	allowedScope := ci.GetScope()
-	filteredScope, err := u.scopeMap.FilterScope(allowedScope, requestedScope)
-	if err != nil {
-		return
-	}
+// func (u *oauthUsecase) GrantedScope(w http.ResponseWriter, r *http.Request) (scope string, err error) {
+// 	// authorization code 를 요청할 때, 요청 파라메터의 client_id와 scope를 이용해서
+// 	// 허용된 scope을 구한다.
 
-	scope = u.scopeMap.PickAllowedScope(filteredScope)
-	if scope == "" {
-		err = merror.ErrorNoAllowedScope
-		return
-	}
-	return
-}
+// 	clientID := r.Form.Get("client_id")
+// 	requestedScope := r.Form.Get("scope")
+
+// 	scope, err = u.GrnatScopeByClient(clientID, requestedScope)
+// 	return
+// }
+
+// func (u *oauthUsecase) GrnatScopeByClient(clientID, requestedScope string) (scope string, err error) {
+// 	ci, err := u.oauth2Server.GetClientByID(clientID)
+// 	if err != nil {
+// 		return
+// 	}
+// 	allowedScope := ci.GetScope()
+// 	filteredScope, err := u.scopeMap.FilterScope(allowedScope, requestedScope)
+// 	if err != nil {
+// 		return
+// 	}
+
+// 	scope = u.scopeMap.PickAllowedScope(filteredScope)
+// 	if scope == "" {
+// 		err = merror.ErrorNoAllowedScope
+// 		return
+// 	}
+// 	return
+// }
 
 func (u *oauthUsecase) RequestToken(w http.ResponseWriter, r *http.Request) error {
-	return u.oauth2Authorizer.Token(w, r)
+	return u.oauth2Server.Token(w, r)
 }
 
 func (u *oauthUsecase) VerifyToken(w http.ResponseWriter, r *http.Request) (map[string]interface{}, error) {
 	commons.DumpRequest(os.Stdout, "OAuthValidateTokenHandler", r) // Ignore the error
 
-	_, expiresIn, clientID, userID, scope, err := u.oauth2Authorizer.ValidateToken(r)
+	_, expiresIn, clientID, userID, scope, err := u.oauth2Server.ValidateToken(r)
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +252,7 @@ func (u *oauthUsecase) VerifyToken(w http.ResponseWriter, r *http.Request) (map[
 }
 
 func (u *oauthUsecase) AddClientCredential(clientID, clientSecret, clientDomain, scope string) (map[string]interface{}, error) {
-	err := u.oauth2Authorizer.AddClient(clientID, clientSecret, clientDomain, scope)
+	err := u.oauth2Server.AddClient(clientID, clientSecret, clientDomain, scope)
 	if err != nil {
 		return nil, err
 	}

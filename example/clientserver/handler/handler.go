@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/wonksing/oauth-server/pkg/commons"
+	"github.com/wonksing/oauth-server/pkg/models/moauth"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 )
@@ -44,7 +45,7 @@ func (h *ClientHandler) AuthCodeRequest(w http.ResponseWriter, r *http.Request) 
 	globalState = commons.RandStringBytes(5)
 	globalVerifier = commons.RandStringBytes(16)
 	u := h.OAuthConfig.AuthCodeURL(globalState,
-		oauth2.SetAuthURLParam("code_challenge", commons.GenCodeChallengeS256(globalVerifier)),
+		oauth2.SetAuthURLParam("code_challenge", moauth.GenCodeChallengeS256(globalVerifier)),
 		oauth2.SetAuthURLParam("code_challenge_method", "S256"))
 
 	log.Println(globalState, globalVerifier)
