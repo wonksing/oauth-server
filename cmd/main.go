@@ -28,7 +28,7 @@ import (
 )
 
 var (
-	Version         = "v1.1.11"
+	Version         = "v1.1.12"
 	printVersion    = false
 	tickIntervalSec = 30
 
