@@ -29,11 +29,11 @@ func TestSetClientReturnURI(t *testing.T) {
 
 	jwtSecret := "secret"
 	jwtExpiresSecond := 60
-	oauth2Auth := mocks.NewMockOAuth2Authorizer(ctrl)
+	oauth2Auth := mocks.NewMockOAuth2Server(ctrl)
 	authRepo := mocks.NewMockAuthRepo(ctrl)
 	authView := mocks.NewMockAuthView(ctrl)
 	resRepo := mocks.NewMockResourceRepo(ctrl)
-	scopeMap := createScopeMap()
+	// scopeMap := createScopeMap()
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -43,7 +43,7 @@ func TestSetClientReturnURI(t *testing.T) {
 	r.Form = v
 
 	authRepo.EXPECT().SetClientReturnURI(w, r).AnyTimes().Return(nil)
-	usc := uoauth.NewOAuthUsecase(jwtSecret, int64(jwtExpiresSecond), oauth2Auth, authRepo, authView, resRepo, scopeMap)
+	usc := uoauth.NewOAuthUsecase(jwtSecret, int64(jwtExpiresSecond), oauth2Auth, authRepo, authView, resRepo)
 
 	err := usc.SetClientReturnURI(w, r)
 	if !assert.Nil(t, err) {
@@ -58,13 +58,13 @@ func TestRedirectToLogin(t *testing.T) {
 
 	jwtSecret := "secret"
 	jwtExpiresSecond := 60
-	oauth2Auth := mocks.NewMockOAuth2Authorizer(ctrl)
+	oauth2Auth := mocks.NewMockOAuth2Server(ctrl)
 	authRepo := mocks.NewMockAuthRepo(ctrl)
 	authView := mocks.NewMockAuthView(ctrl)
 	resRepo := mocks.NewMockResourceRepo(ctrl)
-	scopeMap := createScopeMap()
+	// scopeMap := createScopeMap()
 
-	usc := uoauth.NewOAuthUsecase(jwtSecret, int64(jwtExpiresSecond), oauth2Auth, authRepo, authView, resRepo, scopeMap)
+	usc := uoauth.NewOAuthUsecase(jwtSecret, int64(jwtExpiresSecond), oauth2Auth, authRepo, authView, resRepo)
 
 	// test normal case
 	w := httptest.NewRecorder()
@@ -125,13 +125,13 @@ func TestAuthenticate(t *testing.T) {
 
 	jwtSecret := "secret"
 	jwtExpiresSecond := 60
-	oauth2Auth := mocks.NewMockOAuth2Authorizer(ctrl)
+	oauth2Auth := mocks.NewMockOAuth2Server(ctrl)
 	authRepo := mocks.NewMockAuthRepo(ctrl)
 	authView := mocks.NewMockAuthView(ctrl)
 	resRepo := mocks.NewMockResourceRepo(ctrl)
-	scopeMap := createScopeMap()
+	// scopeMap := createScopeMap()
 
-	usc := uoauth.NewOAuthUsecase(jwtSecret, int64(jwtExpiresSecond), oauth2Auth, authRepo, authView, resRepo, scopeMap)
+	usc := uoauth.NewOAuthUsecase(jwtSecret, int64(jwtExpiresSecond), oauth2Auth, authRepo, authView, resRepo)
 
 	// test normal case
 	w := httptest.NewRecorder()
@@ -162,13 +162,13 @@ func TestGrantAuthorizeCode(t *testing.T) {
 
 	jwtSecret := "secret"
 	jwtExpiresSecond := 60
-	oauth2Auth := mocks.NewMockOAuth2Authorizer(ctrl)
+	oauth2Auth := mocks.NewMockOAuth2Server(ctrl)
 	authRepo := mocks.NewMockAuthRepo(ctrl)
 	authView := mocks.NewMockAuthView(ctrl)
 	resRepo := mocks.NewMockResourceRepo(ctrl)
-	scopeMap := createScopeMap()
+	// scopeMap := createScopeMap()
 
-	usc := uoauth.NewOAuthUsecase(jwtSecret, int64(jwtExpiresSecond), oauth2Auth, authRepo, authView, resRepo, scopeMap)
+	usc := uoauth.NewOAuthUsecase(jwtSecret, int64(jwtExpiresSecond), oauth2Auth, authRepo, authView, resRepo)
 
 	// test normal case
 	w := httptest.NewRecorder()

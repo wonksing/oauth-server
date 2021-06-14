@@ -427,31 +427,31 @@ func (mr *MockResourceRepoMockRecorder) VerifyUserIDPW(userID, userPW interface{
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "VerifyUserIDPW", reflect.TypeOf((*MockResourceRepo)(nil).VerifyUserIDPW), userID, userPW)
 }
 
-// MockOAuth2Authorizer is a mock of OAuth2Authorizer interface.
-type MockOAuth2Authorizer struct {
+// MockOAuth2Server is a mock of OAuth2Server interface.
+type MockOAuth2Server struct {
 	ctrl     *gomock.Controller
-	recorder *MockOAuth2AuthorizerMockRecorder
+	recorder *MockOAuth2ServerMockRecorder
 }
 
-// MockOAuth2AuthorizerMockRecorder is the mock recorder for MockOAuth2Authorizer.
-type MockOAuth2AuthorizerMockRecorder struct {
-	mock *MockOAuth2Authorizer
+// MockOAuth2ServerMockRecorder is the mock recorder for MockOAuth2Server.
+type MockOAuth2ServerMockRecorder struct {
+	mock *MockOAuth2Server
 }
 
-// NewMockOAuth2Authorizer creates a new mock instance.
-func NewMockOAuth2Authorizer(ctrl *gomock.Controller) *MockOAuth2Authorizer {
-	mock := &MockOAuth2Authorizer{ctrl: ctrl}
-	mock.recorder = &MockOAuth2AuthorizerMockRecorder{mock}
+// NewMockOAuth2Server creates a new mock instance.
+func NewMockOAuth2Server(ctrl *gomock.Controller) *MockOAuth2Server {
+	mock := &MockOAuth2Server{ctrl: ctrl}
+	mock.recorder = &MockOAuth2ServerMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockOAuth2Authorizer) EXPECT() *MockOAuth2AuthorizerMockRecorder {
+func (m *MockOAuth2Server) EXPECT() *MockOAuth2ServerMockRecorder {
 	return m.recorder
 }
 
 // AddClient mocks base method.
-func (m *MockOAuth2Authorizer) AddClient(clientID, clientSecret, clientDomain, scope string) error {
+func (m *MockOAuth2Server) AddClient(clientID, clientSecret, clientDomain, scope string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddClient", clientID, clientSecret, clientDomain, scope)
 	ret0, _ := ret[0].(error)
@@ -459,13 +459,13 @@ func (m *MockOAuth2Authorizer) AddClient(clientID, clientSecret, clientDomain, s
 }
 
 // AddClient indicates an expected call of AddClient.
-func (mr *MockOAuth2AuthorizerMockRecorder) AddClient(clientID, clientSecret, clientDomain, scope interface{}) *gomock.Call {
+func (mr *MockOAuth2ServerMockRecorder) AddClient(clientID, clientSecret, clientDomain, scope interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddClient", reflect.TypeOf((*MockOAuth2Authorizer)(nil).AddClient), clientID, clientSecret, clientDomain, scope)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddClient", reflect.TypeOf((*MockOAuth2Server)(nil).AddClient), clientID, clientSecret, clientDomain, scope)
 }
 
 // AuthorizeCode mocks base method.
-func (m *MockOAuth2Authorizer) AuthorizeCode(w http.ResponseWriter, r *http.Request) error {
+func (m *MockOAuth2Server) AuthorizeCode(w http.ResponseWriter, r *http.Request) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AuthorizeCode", w, r)
 	ret0, _ := ret[0].(error)
@@ -473,13 +473,13 @@ func (m *MockOAuth2Authorizer) AuthorizeCode(w http.ResponseWriter, r *http.Requ
 }
 
 // AuthorizeCode indicates an expected call of AuthorizeCode.
-func (mr *MockOAuth2AuthorizerMockRecorder) AuthorizeCode(w, r interface{}) *gomock.Call {
+func (mr *MockOAuth2ServerMockRecorder) AuthorizeCode(w, r interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AuthorizeCode", reflect.TypeOf((*MockOAuth2Authorizer)(nil).AuthorizeCode), w, r)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AuthorizeCode", reflect.TypeOf((*MockOAuth2Server)(nil).AuthorizeCode), w, r)
 }
 
 // GetClientByID mocks base method.
-func (m *MockOAuth2Authorizer) GetClientByID(clientID string) (*moauth.OAuthClient, error) {
+func (m *MockOAuth2Server) GetClientByID(clientID string) (*moauth.OAuthClient, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetClientByID", clientID)
 	ret0, _ := ret[0].(*moauth.OAuthClient)
@@ -488,13 +488,28 @@ func (m *MockOAuth2Authorizer) GetClientByID(clientID string) (*moauth.OAuthClie
 }
 
 // GetClientByID indicates an expected call of GetClientByID.
-func (mr *MockOAuth2AuthorizerMockRecorder) GetClientByID(clientID interface{}) *gomock.Call {
+func (mr *MockOAuth2ServerMockRecorder) GetClientByID(clientID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetClientByID", reflect.TypeOf((*MockOAuth2Authorizer)(nil).GetClientByID), clientID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetClientByID", reflect.TypeOf((*MockOAuth2Server)(nil).GetClientByID), clientID)
+}
+
+// GrnatScopeByClient mocks base method.
+func (m *MockOAuth2Server) GrnatScopeByClient(clientID, requestedScope string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GrnatScopeByClient", clientID, requestedScope)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GrnatScopeByClient indicates an expected call of GrnatScopeByClient.
+func (mr *MockOAuth2ServerMockRecorder) GrnatScopeByClient(clientID, requestedScope interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GrnatScopeByClient", reflect.TypeOf((*MockOAuth2Server)(nil).GrnatScopeByClient), clientID, requestedScope)
 }
 
 // Token mocks base method.
-func (m *MockOAuth2Authorizer) Token(w http.ResponseWriter, r *http.Request) error {
+func (m *MockOAuth2Server) Token(w http.ResponseWriter, r *http.Request) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Token", w, r)
 	ret0, _ := ret[0].(error)
@@ -502,13 +517,13 @@ func (m *MockOAuth2Authorizer) Token(w http.ResponseWriter, r *http.Request) err
 }
 
 // Token indicates an expected call of Token.
-func (mr *MockOAuth2AuthorizerMockRecorder) Token(w, r interface{}) *gomock.Call {
+func (mr *MockOAuth2ServerMockRecorder) Token(w, r interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Token", reflect.TypeOf((*MockOAuth2Authorizer)(nil).Token), w, r)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Token", reflect.TypeOf((*MockOAuth2Server)(nil).Token), w, r)
 }
 
 // ValidateToken mocks base method.
-func (m *MockOAuth2Authorizer) ValidateToken(r *http.Request) (string, int64, string, string, string, error) {
+func (m *MockOAuth2Server) ValidateToken(r *http.Request) (string, int64, string, string, string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ValidateToken", r)
 	ret0, _ := ret[0].(string)
@@ -521,7 +536,7 @@ func (m *MockOAuth2Authorizer) ValidateToken(r *http.Request) (string, int64, st
 }
 
 // ValidateToken indicates an expected call of ValidateToken.
-func (mr *MockOAuth2AuthorizerMockRecorder) ValidateToken(r interface{}) *gomock.Call {
+func (mr *MockOAuth2ServerMockRecorder) ValidateToken(r interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateToken", reflect.TypeOf((*MockOAuth2Authorizer)(nil).ValidateToken), r)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateToken", reflect.TypeOf((*MockOAuth2Server)(nil).ValidateToken), r)
 }
