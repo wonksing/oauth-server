@@ -54,7 +54,7 @@ type ResourceRepo interface {
 	VerifyUserIDPW(userID, userPW string) (string, error)
 }
 
-type OAuth2Authorizer interface {
+type OAuth2Server interface {
 	AuthorizeCode(w http.ResponseWriter, r *http.Request) error
 	Token(w http.ResponseWriter, r *http.Request) error
 	ValidateToken(r *http.Request) (accessToken string, expiresIn int64, clientID string, userID string, scope string, err error)

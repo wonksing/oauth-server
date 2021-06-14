@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -11,8 +12,6 @@ import (
 
 	"github.com/wonksing/oauth-server/pkg/adaptors/authorizers"
 
-	oauthErrors "github.com/go-oauth2/oauth2/v4/errors"
-
 	"github.com/spf13/viper"
 	"github.com/wonksing/oauth-server/cmd/restapis"
 	"github.com/wonksing/oauth-server/pkg/adaptors/cookies"
@@ -20,6 +19,7 @@ import (
 	"github.com/wonksing/oauth-server/pkg/adaptors/views"
 	"github.com/wonksing/oauth-server/pkg/commons"
 	"github.com/wonksing/oauth-server/pkg/deliveries/doauth"
+	"github.com/wonksing/oauth-server/pkg/models/merror"
 	"github.com/wonksing/oauth-server/pkg/models/moauth"
 	"github.com/wonksing/oauth-server/pkg/port"
 	"github.com/wonksing/oauth-server/pkg/usecases/uoauth"
@@ -237,12 +237,6 @@ func main() {
 	grantTypes := getAllowedGrantTypesFromConfig(allowedGrantType)
 	clientCredentials := getClientCredentialsFromConfig(clientCredentialMap)
 
-	oauthServer := commons.NewOAuthServer(
-		authCodeAccessTokenExp, authCodeRefreshTokenExp, authCodeGenerateRefresh,
-		clientCredentialsAccessTokenExp, clientCredentialsRefreshTokenExp, clientCredentialsGenerateRefresh,
-		tokenStoreFilePath, jwtAccessToken, oAuthJwtSecret, grantTypes, clientCredentials,
-	)
-
 	oauthCookie := cookies.NewOAuthCookie(
 		returnURIKey,
 		time.Duration(returnURIExp)*time.Hour,
@@ -275,11 +269,15 @@ func main() {
 	)
 	resRepo := repositories.NewOAuthUserRepo()
 
-	oauth2Authorizer := authorizers.NewOAuth2Authorizer(oauthServer)
+	oauth2Server := authorizers.NewOAuth2Server(
+		authCodeAccessTokenExp, authCodeRefreshTokenExp, authCodeGenerateRefresh,
+		clientCredentialsAccessTokenExp, clientCredentialsRefreshTokenExp, clientCredentialsGenerateRefresh,
+		tokenStoreFilePath, jwtAccessToken, oAuthJwtSecret, grantTypes, clientCredentials,
+	)
 
 	oauthUsc := uoauth.NewOAuthUsecase(
 		jwtSecret, jwtExpiresSecond,
-		oauth2Authorizer,
+		oauth2Server,
 		authRepo, authView, resRepo,
 		scopeMap,
 	)
@@ -288,29 +286,62 @@ func main() {
 	// jwtMiddleware := dmiddleware.NewJWTMiddleware(jwtSecret, moauth.KeyAccessToken, oauthUsc)
 	httpServer := commons.NewHttpServer(addr, wt, rt, cert, certKey, nil, nil, nil)
 
-	oauthServer.Srv.SetResponseErrorHandler(func(re *oauthErrors.Response) {
-		// 오류 응답은 다음과 같은 json 포맷으로 통일하도록 하자
-		// {"error":"unauthorized_client","error_description":"The client is not authorized to request an authorization code using this method"}
-		log.WithFields(commons.LogrusFields()).Error(re.Error)
-	})
-	oauthServer.Srv.SetAuthorizeScopeHandler(oauthUsc.GrantedScope)
-	oauthServer.Srv.SetClientScopeHandler(func(tgr *oauth2.TokenGenerateRequest) (allowed bool, err error) {
-		// 모든 Grant Type을 통해 Token을 요청할 때, 발급한 토큰에 여기서 지정한 scope이 포함된다
-		scope, err := oauthUsc.GrnatScopeByClient(tgr.ClientID, tgr.Scope)
+	oauth2Server.Srv.SetAuthorizeScopeHandler(func(w http.ResponseWriter, r *http.Request) (scope string, err error) {
+		// authorization code 를 요청할 때, 요청 파라메터의 client_id와 scope를 이용해서
+		// 허용된 scope을 구한다.
+
+		clientID := r.Form.Get("client_id")
+		requestedScope := r.Form.Get("scope")
+
+		ci, err := oauth2Server.GetClientByID(clientID)
 		if err != nil {
-			allowed = false
 			return
 		}
+		allowedScope := ci.GetScope()
+		filteredScope, err := scopeMap.FilterScope(allowedScope, requestedScope)
+		if err != nil {
+			return
+		}
+
+		scope = scopeMap.PickAllowedScope(filteredScope)
+		if scope == "" {
+			err = merror.ErrorNoAllowedScope
+			return
+		}
+		return
+	})
+	oauth2Server.Srv.SetClientScopeHandler(func(tgr *oauth2.TokenGenerateRequest) (allowed bool, err error) {
+		// 모든 Grant Type을 통해 Token을 요청할 때, 발급한 토큰에 여기서 지정한 scope이 포함된다
+		allowed = false
+
+		ci, err := oauth2Server.GetClientByID(tgr.ClientID)
+		if err != nil {
+			return
+		}
+		allowedScope := ci.GetScope()
+		filteredScope, err := scopeMap.FilterScope(allowedScope, tgr.Scope)
+		if err != nil {
+			return
+		}
+
+		scope := scopeMap.PickAllowedScope(filteredScope)
+		if scope == "" {
+			err = merror.ErrorNoAllowedScope
+			return
+		}
+
 		allowed = true
 		tgr.Scope = scope
 		err = nil
 		return
 	})
 	// Authorization Code Grant
-	oauthServer.Srv.SetUserAuthorizationHandler(oauthUsc.GrantedUserID)
+	oauth2Server.Srv.SetUserAuthorizationHandler(func(w http.ResponseWriter, r *http.Request) (string, error) {
+		return moauth.GetUserIDContext(r.Context())
+	})
 
 	// Password credentials
-	oauthServer.Srv.SetPasswordAuthorizationHandler(oauthUsc.VerifyUserIDPW)
+	oauth2Server.Srv.SetPasswordAuthorizationHandler(resRepo.VerifyUserIDPW)
 
 	// OAuth2 API
 	restapis.RegisterOAuthAPIs(httpServer.Router, oauthHandler)

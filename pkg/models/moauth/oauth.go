@@ -2,6 +2,8 @@ package moauth
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"strings"
 	"sync"
@@ -22,11 +24,16 @@ type OAuthAllowStatus struct {
 
 func GetUserIDContext(ctx context.Context) (string, error) {
 	tmp := ctx.Value(OAuthUserID{})
-	if tmp == nil || tmp.(string) == "" {
+	if tmp == nil {
 		return "", merror.ErrorUserIDNotFound
 	}
 
-	return tmp.(string), nil
+	userID := strings.TrimSpace(tmp.(string))
+	if userID == "" {
+		return "", merror.ErrorUserIDNotFound
+	}
+
+	return userID, nil
 }
 
 func WithUserIDContext(ctx context.Context, userID string) context.Context {
@@ -153,4 +160,9 @@ func (c *OAuthClient) GetUserID() string {
 
 func (c *OAuthClient) GetScope() string {
 	return c.Scope
+}
+
+func GenCodeChallengeS256(s string) string {
+	s256 := sha256.Sum256([]byte(s))
+	return base64.URLEncoding.EncodeToString(s256[:])
 }
