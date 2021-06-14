@@ -19,7 +19,6 @@ import (
 	"github.com/wonksing/oauth-server/pkg/adaptors/views"
 	"github.com/wonksing/oauth-server/pkg/commons"
 	"github.com/wonksing/oauth-server/pkg/deliveries/doauth"
-	"github.com/wonksing/oauth-server/pkg/models/merror"
 	"github.com/wonksing/oauth-server/pkg/models/moauth"
 	"github.com/wonksing/oauth-server/pkg/port"
 	"github.com/wonksing/oauth-server/pkg/usecases/uoauth"
@@ -273,19 +272,14 @@ func main() {
 		authCodeAccessTokenExp, authCodeRefreshTokenExp, authCodeGenerateRefresh,
 		clientCredentialsAccessTokenExp, clientCredentialsRefreshTokenExp, clientCredentialsGenerateRefresh,
 		tokenStoreFilePath, jwtAccessToken, oAuthJwtSecret, grantTypes, clientCredentials,
+		scopeMap,
 	)
 
 	oauthUsc := uoauth.NewOAuthUsecase(
 		jwtSecret, jwtExpiresSecond,
 		oauth2Server,
 		authRepo, authView, resRepo,
-		scopeMap,
 	)
-
-	oauthHandler := doauth.NewOAuthHandler(oauthUsc)
-	// jwtMiddleware := dmiddleware.NewJWTMiddleware(jwtSecret, moauth.KeyAccessToken, oauthUsc)
-	httpServer := commons.NewHttpServer(addr, wt, rt, cert, certKey, nil, nil, nil)
-
 	oauth2Server.Srv.SetAuthorizeScopeHandler(func(w http.ResponseWriter, r *http.Request) (scope string, err error) {
 		// authorization code 를 요청할 때, 요청 파라메터의 client_id와 scope를 이용해서
 		// 허용된 scope을 구한다.
@@ -293,40 +287,15 @@ func main() {
 		clientID := r.Form.Get("client_id")
 		requestedScope := r.Form.Get("scope")
 
-		ci, err := oauth2Server.GetClientByID(clientID)
-		if err != nil {
-			return
-		}
-		allowedScope := ci.GetScope()
-		filteredScope, err := scopeMap.FilterScope(allowedScope, requestedScope)
-		if err != nil {
-			return
-		}
+		scope, err = oauth2Server.GrnatScopeByClient(clientID, requestedScope)
 
-		scope = scopeMap.PickAllowedScope(filteredScope)
-		if scope == "" {
-			err = merror.ErrorNoAllowedScope
-			return
-		}
 		return
 	})
 	oauth2Server.Srv.SetClientScopeHandler(func(tgr *oauth2.TokenGenerateRequest) (allowed bool, err error) {
 		// 모든 Grant Type을 통해 Token을 요청할 때, 발급한 토큰에 여기서 지정한 scope이 포함된다
 		allowed = false
-
-		ci, err := oauth2Server.GetClientByID(tgr.ClientID)
+		scope, err := oauth2Server.GrnatScopeByClient(tgr.ClientID, tgr.Scope)
 		if err != nil {
-			return
-		}
-		allowedScope := ci.GetScope()
-		filteredScope, err := scopeMap.FilterScope(allowedScope, tgr.Scope)
-		if err != nil {
-			return
-		}
-
-		scope := scopeMap.PickAllowedScope(filteredScope)
-		if scope == "" {
-			err = merror.ErrorNoAllowedScope
 			return
 		}
 
@@ -342,6 +311,10 @@ func main() {
 
 	// Password credentials
 	oauth2Server.Srv.SetPasswordAuthorizationHandler(resRepo.VerifyUserIDPW)
+
+	oauthHandler := doauth.NewOAuthHandler(oauthUsc)
+	// jwtMiddleware := dmiddleware.NewJWTMiddleware(jwtSecret, moauth.KeyAccessToken, oauthUsc)
+	httpServer := commons.NewHttpServer(addr, wt, rt, cert, certKey, nil, nil, nil)
 
 	// OAuth2 API
 	restapis.RegisterOAuthAPIs(httpServer.Router, oauthHandler)

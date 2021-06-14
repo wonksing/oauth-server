@@ -60,4 +60,7 @@ type OAuth2Server interface {
 	ValidateToken(r *http.Request) (accessToken string, expiresIn int64, clientID string, userID string, scope string, err error)
 	AddClient(clientID, clientSecret, clientDomain, scope string) error
 	GetClientByID(clientID string) (*moauth.OAuthClient, error)
+
+	// GrnatScopeByClient Client별 허용된 Scope을 구한다
+	GrnatScopeByClient(clientID, requestedScope string) (scope string, err error)
 }

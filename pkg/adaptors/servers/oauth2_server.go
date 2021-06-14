@@ -9,6 +9,7 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/wonksing/oauth-server/pkg/commons"
+	"github.com/wonksing/oauth-server/pkg/models/merror"
 	"github.com/wonksing/oauth-server/pkg/models/mjwt"
 	"github.com/wonksing/oauth-server/pkg/models/moauth"
 
@@ -77,12 +78,42 @@ func (a *oauth2Server) GetClientByID(clientID string) (*moauth.OAuthClient, erro
 	return oci, nil
 }
 
+// func (u *oauthUsecase) GrantedScope(w http.ResponseWriter, r *http.Request) (scope string, err error) {
+// 	// authorization code 를 요청할 때, 요청 파라메터의 client_id와 scope를 이용해서
+// 	// 허용된 scope을 구한다.
+
+// 	clientID := r.Form.Get("client_id")
+// 	requestedScope := r.Form.Get("scope")
+
+// 	scope, err = u.GrnatScopeByClient(clientID, requestedScope)
+// 	return
+// }
+func (a *oauth2Server) GrnatScopeByClient(clientID, requestedScope string) (scope string, err error) {
+	ci, err := a.GetClientByID(clientID)
+	if err != nil {
+		return
+	}
+	allowedScope := ci.GetScope()
+	filteredScope, err := a.scopeMap.FilterScope(allowedScope, requestedScope)
+	if err != nil {
+		return
+	}
+
+	scope = a.scopeMap.PickAllowedScope(filteredScope)
+	if scope == "" {
+		err = merror.ErrorNoAllowedScope
+		return
+	}
+	return
+}
+
 //////////////////
 
 type oauth2Server struct {
 	ClientStore *store.ClientStore
 	Manager     *manage.Manager
 	Srv         *server.Server
+	scopeMap    *moauth.OAuthScope
 }
 
 func NewOAuth2Server(
@@ -91,6 +122,7 @@ func NewOAuth2Server(
 	tokenStoreFilePath string, jwtAccessToken bool, jwtSecret string,
 	allowedGrantType []oauth2.GrantType,
 	clientCredentials moauth.OAuthClientList,
+	scopeMap *moauth.OAuthScope,
 ) *oauth2Server {
 	clientStore := initClientStore(clientCredentials)
 
@@ -109,6 +141,7 @@ func NewOAuth2Server(
 		ClientStore: clientStore,
 		Manager:     manager,
 		Srv:         srv,
+		scopeMap:    scopeMap,
 	}
 }
 

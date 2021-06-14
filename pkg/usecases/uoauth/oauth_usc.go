@@ -69,7 +69,6 @@ type oauthUsecase struct {
 	authRepo         port.AuthRepo
 	authView         port.AuthView
 	resRepo          port.ResourceRepo
-	scopeMap         *moauth.OAuthScope
 }
 
 func NewOAuthUsecase(
@@ -79,7 +78,6 @@ func NewOAuthUsecase(
 	authRepo port.AuthRepo,
 	authView port.AuthView,
 	resRepo port.ResourceRepo,
-	scopeMap *moauth.OAuthScope,
 ) Usecase {
 
 	usc := &oauthUsecase{
@@ -89,7 +87,6 @@ func NewOAuthUsecase(
 		authRepo:         authRepo,
 		authView:         authView,
 		resRepo:          resRepo,
-		scopeMap:         scopeMap,
 	}
 	return usc
 }
