@@ -28,7 +28,7 @@ token_config:
   client_credential:
     access_token_exp: 2
     refresh_token_exp: 72
-    generate_refresh: false
+    generate_refresh: true
 
 token_store:
   # file, memory, path 없으면 메모리스토어
