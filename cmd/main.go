@@ -141,40 +141,6 @@ func getAllowedGrantTypesFromConfig(grantTypeConf string) []oauth2.GrantType {
 	return grantTypes
 }
 
-func getScopesFromConfig(m map[string]interface{}) *moauth.OAuthScope {
-	scopeMap := moauth.NewOAuthScope()
-	for k, v := range m {
-
-		list := make(moauth.AuthorizedResources, 0)
-		resources := strings.Split(v.(string), ",")
-		for _, r := range resources {
-			ar := moauth.AuthorizedResource{}
-			ar.Path = r
-			tmp := strings.Split(k, ":")
-			if len(tmp) == 1 {
-				ar.Get = true
-				ar.Post = true
-				ar.Put = true
-				ar.Delete = true
-			} else {
-				switch tmp[len(tmp)-1] {
-				case "read":
-					ar.Get = true
-				case "update":
-					ar.Post = true
-				case "write":
-					ar.Put = true
-				case "delete":
-					ar.Delete = true
-				}
-			}
-			list = append(list, ar)
-		}
-		scopeMap.Set(k, list)
-	}
-	return scopeMap
-}
-
 func main() {
 
 	flag.Parse()
@@ -231,7 +197,7 @@ func main() {
 	scopeViperSub := conf.Sub("scope")
 	scopeConf := scopeViperSub.AllSettings()
 
-	scopeMap := getScopesFromConfig(scopeConf)
+	scopeMap := moauth.NewOAuthScopeMap(scopeConf)
 
 	grantTypes := getAllowedGrantTypesFromConfig(allowedGrantType)
 	clientCredentials := getClientCredentialsFromConfig(clientCredentialMap)

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"net/http"
 	"strings"
 	"sync"
 
@@ -66,6 +67,39 @@ func NewOAuthScope() *OAuthScope {
 	}
 }
 
+func NewOAuthScopeMap(m map[string]interface{}) *OAuthScope {
+	scopeMap := NewOAuthScope()
+	for k, v := range m {
+
+		list := make(AuthorizedResources, 0)
+		resources := strings.Split(v.(string), ",")
+		for _, r := range resources {
+			ar := AuthorizedResource{}
+			ar.Path = r
+			tmp := strings.Split(k, ":")
+			if len(tmp) == 1 {
+				ar.Get = true
+				ar.Post = true
+				ar.Put = true
+				ar.Delete = true
+			} else {
+				switch tmp[len(tmp)-1] {
+				case "read":
+					ar.Get = true
+				case "update":
+					ar.Post = true
+				case "write":
+					ar.Put = true
+				case "delete":
+					ar.Delete = true
+				}
+			}
+			list = append(list, ar)
+		}
+		scopeMap.Set(k, list)
+	}
+	return scopeMap
+}
 func (s *OAuthScope) Get(scope string) (AuthorizedResources, error) {
 	s.RLock()
 	defer s.RUnlock()
@@ -121,6 +155,15 @@ func (s *OAuthScope) FilterScope(allowed, requested string) (string, error) {
 	return matchedScope, nil
 }
 
+func (s *OAuthScope) CheckAuthorizedResource(scope, path, method string) bool {
+	ars, err := s.Get(scope)
+	if err != nil {
+		return false
+	}
+
+	return ars.CheckAuthorizedResource(path, method)
+}
+
 type AuthorizedResource struct {
 	Path   string
 	Get    bool
@@ -128,7 +171,38 @@ type AuthorizedResource struct {
 	Put    bool
 	Delete bool
 }
+
+func (a *AuthorizedResource) CheckAuthorizedResource(path string, method string) bool {
+	if a.Path != path {
+		return false
+	}
+
+	if a.Get && method == http.MethodGet {
+		return true
+	}
+	if a.Post && method == http.MethodPost {
+		return true
+	}
+	if a.Put && method == http.MethodPut {
+		return true
+	}
+	if a.Delete && method == http.MethodDelete {
+		return true
+	}
+
+	return false
+}
+
 type AuthorizedResources []AuthorizedResource
+
+func (ar *AuthorizedResources) CheckAuthorizedResource(path, method string) bool {
+	for _, s := range *ar {
+		if s.CheckAuthorizedResource(path, method) {
+			return true
+		}
+	}
+	return false
+}
 
 type OAuthClient struct {
 	ID     string
